@@ -1,0 +1,2 @@
+class BNN(object):
+    pass
