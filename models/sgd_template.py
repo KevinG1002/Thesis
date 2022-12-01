@@ -1,0 +1,108 @@
+import torch
+import torch.nn as nn
+from torch.nn import CrossEntropyLoss
+from torch.nn.modules.loss import _Loss
+import torch.nn.functional as F
+from torch.utils.data import Dataset, random_split, DataLoader
+from torch.optim import Optimizer, SGD
+
+
+class SupervisedLearning:
+    def __init__(
+        self,
+        model: nn.Module = None,
+        train_set: Dataset = None,
+        test_set: Dataset = None,
+        val_set: Dataset = None,
+        epochs: int = 10,
+        batch_size: int = 32,
+        optim: Optimizer = None,
+        criterion: _Loss = None,
+    ):
+        self.model = model
+        self.train_set = train_set
+        self.test_set = test_set
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.val_set = val_set if val_set else self._instantiate_val_set()
+        self.optim = (
+            optim
+            if optim
+            else SGD(self.model.parameters(), lr=0.001, weight_decay=0.999)
+        )
+        self.criterion = criterion if criterion else CrossEntropyLoss()
+
+    def _instantiate_val_set(self, val_split: float = 0.15):
+        """
+        Internal method used to create a validation set if it isn't passed as an attribute upon class instantiation.
+        Validation set created by splitting training set according to val_split float.
+        """
+        new_train_len = int((1 - val_split) * len(self.train_set))
+        val_len = int(val_split * len(self.train_set))
+        self.train_set, new_val_set = random_split(
+            self.train_set,
+            (new_train_len, val_len),
+            generator=torch.Generator().manual_seed(42),
+        )
+        return new_val_set
+
+    def _instantiate_train_dataloader(self):
+        return DataLoader(dataset=self.train_set, batch_size=self.batch_size)
+
+    def _instantiate_test_dataloader(self):
+        return DataLoader(dataset=self.test_set, batch_size=self.batch_size)
+
+    def _instantiate_val_dataloader(self):
+        return DataLoader(dataset=self.val_set, batch_size=self.batch_size)
+
+    def train(self):
+        self.train_dataloader = self._instantiate_train_dataloader()
+        self.val_dataloader = self._instantiate_val_dataloader()
+
+        # Beginning of training loop #
+        for epoch in self.epochs:
+            loss = 0.0
+            print("\n\n")
+            with self.optim.zero_grad():
+                for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
+                    pred_y = self.model(mbatch_x)
+                    loss += self.criterion(torch.argmax(pred_y, dim=1), mbatch_y)
+                    if idx % 15 == 0:
+                        print("Training loss: %.3f" % loss)
+                    loss.backward()
+                    self.optim.step()
+            print(
+                "\nTraining for epoch %d done. Evaluating on validation set."
+                % (epoch + 1)
+            )
+            # Beginning of validation loop #
+            with torch.no_grad():
+                val_loss = 0.0
+                correct_preds = 0
+                for idx, (mbatch_x, mbatch_y) in enumerate(self.val_dataloader):
+                    pred_y = self.model(mbatch_x)
+                    val_loss += self.criterion(torch.argmax(pred_y, dim=1), mbatch_y)
+                    correct_preds += torch.where(
+                        torch.argmax(pred_y, dim=1) == torch.argmax(mbatch_y, dim=1)
+                    ).sum()
+                print(
+                    "\nEpoch %d\tValidation Loss: %.3f|| Validation Accuracy: %.3f"
+                    % (epoch + 1, val_loss, float(correct_preds / len(self.val_set)))
+                )
+
+    @torch.no_grad()
+    def test(self):
+        self.test_dataloader = self._instantiate_test_dataloader()
+        test_loss = 0.0
+        correct_preds = 0
+        for mbatch_x, mbatch_y in self.test_dataloader:
+            pred_y = self.model(mbatch_x)
+            test_loss += self.criterion(torch.argmax(pred_y, dim=1), mbatch_y)
+            correct_preds += torch.where(
+                torch.argmax(pred_y, dim=1) == torch.argmax(mbatch_y, dim=1)
+            ).sum()
+
+        print(
+            "\nTesting Loss: %.3f || Testing Accuracy: %.3f"
+            % (test_loss, float(correct_preds / len(self.test_set)))
+        )
