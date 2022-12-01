@@ -1,0 +1,2 @@
+class HyperNet(object):
+    pass
