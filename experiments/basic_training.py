@@ -5,7 +5,7 @@ from torchvision import transforms
 
 sys.path.append("..")
 from models.mlp import MLP
-from models.sgd_template import SupervisedLearning
+from templates.sgd_template import SupervisedLearning
 
 torch.manual_seed(17)
 
