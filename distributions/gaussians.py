@@ -1,6 +1,8 @@
 import torch
 from torch.distributions.normal import Normal
+from torch.distributions.categorical import Categorical
 from torch.distributions.independent import Independent
+from torch.distributions.mixture_same_family import MixtureSameFamily
 from .param_distribution import ParameterDistribution
 
 
@@ -47,11 +49,25 @@ class MultivariateDiagonalGaussian(ParameterDistribution):
 
 
 class ScaleMixtureGaussian(ParameterDistribution):
-    def __init__(self, p: float, mu: float, var: float):
+    def __init__(
+        self,
+        p: torch.Tensor,
+        mu_set: torch.Tensor,
+        var_set: torch.Tensor,
+    ):
         super(ScaleMixtureGaussian, self).__init__()
+        assert (
+            p.size() == self.mu_set.size()[0]
+        ), "mixture weights not equal to number of component distributions"
         self.p = p
-        self.mu = mu
-        self.var = var
+        self.mu_set = mu_set
+        self.var_set = var_set
+        mix = Categorical(self.p)
+        component_dists = Normal(self.mu_set, self.var_set)
+        self.scale_mix = MixtureSameFamily(mix, component_dists)
 
-    def log_likelihood(self, values):
-        ...
+    def log_likelihood(self, values) -> torch.Tensor:
+        return self.scale_mix.log_prob(values)
+
+    def sample(self) -> torch.Tensor:
+        return self.scale_mix.sample(self.mu_set.size())
