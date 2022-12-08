@@ -7,45 +7,53 @@ from .param_distribution import ParameterDistribution
 
 
 class UnivariateGaussian(ParameterDistribution):
-    def __init__(self, mu: float, var: float):
+    def __init__(self, mu: float, rho: float):
         super(UnivariateGaussian, self).__init__()
         self.mu = mu
-        self.var = var
+        self.rho = rho
+
+    @property
+    def sigma(self):
+        return torch.log(1 + torch.exp(torch.Tensor([self.rho])))
 
     def log_likelihood(self, values) -> torch.Tensor:
         NLL = (
-            (1 / 2) * torch.log(2 * torch.pi)
-            + torch.log(self.var ** (1 / 2))
-            + ((values - self.mu) ** 2 / (2 * self.var))
+            (1 / 2) * torch.log(torch.Tensor([2 * torch.pi]))
+            + torch.log(torch.Tensor([self.sigma]))
+            + ((values - self.mu) ** 2 / (self.sigma**2))
         )
         return -NLL
 
     def sample(self) -> torch.Tensor:
-        return Normal(self.mu, self.var).sample()
+        return Normal(self.mu, self.sigma).sample()
 
 
 class MultivariateDiagonalGaussian(ParameterDistribution):
-    def __init__(self, mu: torch.Tensor, var: torch.Tensor):
+    def __init__(self, mu: torch.Tensor, rho: torch.Tensor):
         super(MultivariateDiagonalGaussian, self).__init__()
         self.mu = mu
-        self.var = var
+        self.rho = rho
+
+    @property
+    def sigma(self):
+        return torch.log(1 + torch.exp(self.rho))
 
     def log_likelihood(self, values) -> torch.Tensor:
         """
         Recall, log likelihood of multivariate gaussian given by:
         LL = -k/2 ln(2π) - ln(det(\Sigma)^(1/2)) - 1/2 (x - mu)^T \Sigma^(-1) (x-mu)
+        Here, values, mu and var all have the same dimension. Therefore the log-likelihood
+        is computed in an element wise fashion
         """
-        k = values.size()[0]
         NLL = (
-            (k / 2) * torch.log(2 * torch.pi)
-            + torch.log(torch.det(self.var) ** (1 / 2))
-            + (1 / 2)
-            * ((values - self.mu).T @ torch.inverse(self.var) @ (values - self.mu))
+            (1 / 2) * torch.log(torch.Tensor([2 * torch.pi]))
+            + torch.log(self.sigma)
+            + ((values - self.mu) ** 2 / (2 * self.sigma**2))
         )
         return -NLL
 
     def sample(self) -> torch.Tensor:
-        return Normal(self.mu, self.var).sample(self.mu.size())
+        return Normal(self.mu, self.sigma).sample(self.mu.size())
 
 
 class ScaleMixtureGaussian(ParameterDistribution):
@@ -53,7 +61,7 @@ class ScaleMixtureGaussian(ParameterDistribution):
         self,
         p: torch.Tensor,
         mu_set: torch.Tensor,
-        var_set: torch.Tensor,
+        rho_set: torch.Tensor,
     ):
         super(ScaleMixtureGaussian, self).__init__()
         assert (
@@ -61,10 +69,14 @@ class ScaleMixtureGaussian(ParameterDistribution):
         ), "mixture weights not equal to number of component distributions"
         self.p = p
         self.mu_set = mu_set
-        self.var_set = var_set
+        self.rho_set = rho_set
         mix = Categorical(self.p)
-        component_dists = Normal(self.mu_set, self.var_set)
+        component_dists = Normal(self.mu_set, self.sigma_set)
         self.scale_mix = MixtureSameFamily(mix, component_dists)
+
+    @property
+    def sigma_set(self):
+        return torch.log(1 + torch.exp(self.rho_set))
 
     def log_likelihood(self, values) -> torch.Tensor:
         return self.scale_mix.log_prob(values)
