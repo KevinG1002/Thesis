@@ -30,19 +30,40 @@ class SimpleBNN(nn.Module):
         self.bl_2 = BayesianLayer(
             in_features=400, out_features=400, bias=True, prior=self.prior_dist
         )
+
         self.bl_3 = BayesianLayer(
-            in_features=400, out_features=100, bias=True, prior=self.prior_dist
-        )
-        self.bl_4 = BayesianLayer(
-            in_features=100,
+            in_features=400,
             out_features=number_of_classes,
             bias=True,
             prior=self.prior_dist,
         )
 
     def forward(self, x):
-        x = F.relu(self.bl_1(x))
-        x = F.relu(self.bl_2(x))
-        x = F.relu(self.bl_3(x))
-        x = F.relu(self.bl_4(x))
-        return torch.sof
+        tot_log_prior = torch.tensor(0.0)
+        tot_log_var_posterior = torch.tensor(0.0)
+
+        x, log_prior, log_var_posterior = self.bl_1(x)
+        tot_log_prior += log_prior
+        tot_log_var_posterior += log_var_posterior
+        x = F.relu(x)
+        x, log_prior, log_var_posterior = self.bl_2(x)
+        tot_log_prior += log_prior
+        tot_log_var_posterior += log_var_posterior
+        x = F.relu(x)
+        x, log_prior, log_var_posterior = self.bl_3(x)
+        tot_log_prior += log_prior
+        tot_log_var_posterior += log_var_posterior
+        x = F.relu(x)
+        return F.softmax(x, dim=1), tot_log_prior, tot_log_var_posterior
+
+    def predict(self, x: torch.Tensor, num_mc_samples: int):
+        probability_samples = torch.stack(
+            [self.forward(x) for _ in range(num_mc_samples)]
+        )
+        estimated_probability = torch.mean(probability_samples, dim=0)
+        assert estimated_probability.shape == (x.shape[0], self.number_of_classes)
+        assert all(
+            torch.allclose(torch.sum(estimated_probability, dim=1), torch.tensor(1.0))
+        )
+
+        return estimated_probability

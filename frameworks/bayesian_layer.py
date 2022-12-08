@@ -2,8 +2,11 @@ import torch
 from typing import Type
 from torch.nn import Module, Parameter
 import torch.nn.functional as F
-from ..distributions.param_distribution import ParameterDistribution
-from ..distributions.gaussians import UnivariateGaussian, MultivariateDiagonalGaussian
+import sys
+
+sys.path.append("..")
+from distributions.param_distribution import ParameterDistribution
+from distributions.gaussians import UnivariateGaussian, MultivariateDiagonalGaussian
 
 
 class BayesianLayer(Module):
@@ -44,10 +47,8 @@ class BayesianLayer(Module):
             ), "Prior cannot have parameters"
 
             self.bias_var_posterior = MultivariateDiagonalGaussian(
-                mu=Parameter(self.out_features).uniform_(-0.05, 0.05),
-                var=Parameter(self.out_features, self.out_features).uniform_(
-                    -0.05, 0.05
-                ),
+                mu=Parameter(torch.Tensor(self.out_features).normal_(0, 0.1)),
+                rho=Parameter(torch.Tensor(self.out_features).normal_(0.5, 0.25)),
             )
             assert isinstance(self.bias_var_posterior, ParameterDistribution)
             assert any(True for _ in self.bias_var_posterior.parameters())
@@ -62,8 +63,12 @@ class BayesianLayer(Module):
         ), "Prior cannot have parameters"
         # estimate of weight variational posterior, start close to zero for numerical stability; these will be optimized with time.
         self.weights_var_posterior = MultivariateDiagonalGaussian(
-            mu=Parameter(self.in_features, self.out_features).uniform_(-0.05, 0.05),
-            var=Parameter(self.in_features, self.out_features).uniform_(-0.05, 0.05),
+            mu=Parameter(
+                torch.Tensor(self.out_features, self.in_features).normal_(0, 0.5)
+            ),
+            rho=Parameter(
+                torch.Tensor(self.out_features, self.in_features).normal_(0.5, 0.25)
+            ),
         )
         assert isinstance(self.weights_var_posterior, ParameterDistribution)
 
@@ -75,24 +80,27 @@ class BayesianLayer(Module):
         """
 
         epsilon = torch.distributions.Normal(0, 1).sample(
-            self.out_features, self.in_features
+            (self.out_features, self.in_features)
         )
 
         weights = self.weights_var_posterior.mu + (
-            self.weights_var_posterior.var ** (1 / 2) * epsilon
+            self.weights_var_posterior.sigma * epsilon
         )
-        log_prior = self.weight_prior.log_likelihood(x)
-        log_variational_posterior = self.weights_var_posterior.log_likelihood(x)
+        log_prior = self.weight_prior.log_likelihood(weights).sum()
+        log_variational_posterior = self.weights_var_posterior.log_likelihood(
+            weights
+        ).sum()
 
         if self.bias:
-            eps = torch.distributions.Normal(0, 1).sample(self.out_features)
-            bias = self.bias_var_posterior.mu + eps * (self.bias_var_posterior.var) ** (
-                1 / 2
-            )
-            log_prior += self.bias_prior.log_likelihood(x)
-            log_variational_posterior += self.bias_var_posterior.log_likelihood(x)
+            eps = torch.distributions.Normal(0, 1).sample([self.out_features])
+            bias = self.bias_var_posterior.mu + eps * (self.bias_var_posterior.sigma)
+
+            log_prior += self.bias_prior.log_likelihood(bias).sum()
+            log_variational_posterior += self.bias_var_posterior.log_likelihood(
+                bias
+            ).sum()
 
             return F.linear(x, weights, bias), log_prior, log_variational_posterior
 
         else:
-            return F.linear(x, weights), log_prior, log_variational_posterior
+            return F.linear(x, weights, bias=None), log_prior, log_variational_posterior
