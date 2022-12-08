@@ -5,20 +5,23 @@ from torch.nn.modules.loss import _Loss
 import torch.nn.functional as F
 from torch.utils.data import Dataset, random_split, DataLoader
 from torch.optim import Optimizer, SGD
+from .basic_template import BasicLearning
 
 
-class SupervisedLearning:
+class SupervisedLearning(BasicLearning):
     def __init__(
         self,
         model: nn.Module = None,
         train_set: Dataset = None,
         test_set: Dataset = None,
         val_set: Dataset = None,
+        num_classes: int = 10,
         epochs: int = 10,
         batch_size: int = 32,
         optim: Optimizer = None,
         criterion: _Loss = None,
     ):
+        super().__init__()
         self.model = model
         self.train_set = train_set
         self.test_set = test_set
@@ -31,6 +34,7 @@ class SupervisedLearning:
             else SGD(self.model.parameters(), lr=0.001, weight_decay=0.999)
         )
         self.criterion = criterion if criterion else CrossEntropyLoss()
+        self.num_classes = num_classes
 
     def _instantiate_val_set(self, val_split: float = 0.15):
         """
@@ -60,17 +64,21 @@ class SupervisedLearning:
         self.val_dataloader = self._instantiate_val_dataloader()
 
         # Beginning of training loop #
-        for epoch in self.epochs:
-            loss = 0.0
+        for epoch in range(self.epochs):
+            self.optim.zero_grad()
             print("\n\n")
-            with self.optim.zero_grad():
-                for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
-                    pred_y = self.model(mbatch_x)
-                    loss += self.criterion(torch.argmax(pred_y, dim=1), mbatch_y)
-                    if idx % 15 == 0:
-                        print("Training loss: %.3f" % loss)
-                    loss.backward()
-                    self.optim.step()
+            for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
+                flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
+                one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y]
+                pred_y = self.model(flattened_mbatch_x)
+                loss = self.criterion(
+                    pred_y,
+                    one_hot_mbatch_y,
+                )
+                if idx % 100 == 0:
+                    print("Training loss: %.3f" % loss)
+                loss.backward()
+                self.optim.step()
             print(
                 "\nTraining for epoch %d done. Evaluating on validation set."
                 % (epoch + 1)
@@ -80,14 +88,22 @@ class SupervisedLearning:
                 val_loss = 0.0
                 correct_preds = 0
                 for idx, (mbatch_x, mbatch_y) in enumerate(self.val_dataloader):
-                    pred_y = self.model(mbatch_x)
-                    val_loss += self.criterion(torch.argmax(pred_y, dim=1), mbatch_y)
+                    flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
+                    one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y]
+                    pred_y = self.model(flattened_mbatch_x)
+                    val_loss += self.criterion(pred_y, one_hot_mbatch_y)
                     correct_preds += torch.where(
-                        torch.argmax(pred_y, dim=1) == torch.argmax(mbatch_y, dim=1)
+                        torch.argmax(pred_y, dim=1) == mbatch_y,
+                        1,
+                        0,
                     ).sum()
                 print(
-                    "\nEpoch %d\tValidation Loss: %.3f|| Validation Accuracy: %.3f"
-                    % (epoch + 1, val_loss, float(correct_preds / len(self.val_set)))
+                    "\nEpoch %d\tAvg Validation Loss: %.3f|| Validation Accuracy: %.3f"
+                    % (
+                        epoch + 1,
+                        val_loss / len(self.val_dataloader),
+                        float(correct_preds / len(self.val_set)),
+                    )
                 )
 
     @torch.no_grad()
@@ -96,13 +112,18 @@ class SupervisedLearning:
         test_loss = 0.0
         correct_preds = 0
         for mbatch_x, mbatch_y in self.test_dataloader:
-            pred_y = self.model(mbatch_x)
-            test_loss += self.criterion(torch.argmax(pred_y, dim=1), mbatch_y)
+            flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
+            one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y]
+            pred_y = self.model(flattened_mbatch_x)
+            test_loss += self.criterion(pred_y, one_hot_mbatch_y)
             correct_preds += torch.where(
-                torch.argmax(pred_y, dim=1) == torch.argmax(mbatch_y, dim=1)
+                torch.argmax(pred_y, dim=1) == mbatch_y, 1, 0
             ).sum()
 
         print(
             "\nTesting Loss: %.3f || Testing Accuracy: %.3f"
-            % (test_loss, float(correct_preds / len(self.test_set)))
+            % (
+                test_loss / len(self.test_dataloader),
+                float(correct_preds / len(self.test_set)),
+            )
         )
