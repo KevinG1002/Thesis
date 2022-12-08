@@ -11,7 +11,7 @@ class ParameterDistribution(nn.Module, ABC):
     def __init__(
         self,
     ):
-        super(ParameterDistribution, self).__init__()
+        super().__init__()
 
     @abstractmethod
     def log_likelihood(self, values: torch.Tensor) -> torch.Tensor:
@@ -27,7 +27,6 @@ class ParameterDistribution(nn.Module, ABC):
         """
         ...
 
-    @abstractmethod
     def forward(self, values: torch.Tensor) -> torch.Tensor:
         """
         Necessary for nn.Module super class. Just returns log-likelihood of vector of values.
