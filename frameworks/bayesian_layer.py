@@ -48,7 +48,7 @@ class BayesianLayer(Module):
 
             self.bias_var_posterior = MultivariateDiagonalGaussian(
                 mu=Parameter(torch.Tensor(self.out_features).normal_(0, 0.1)),
-                rho=Parameter(torch.Tensor(self.out_features).normal_(0.5, 0.25)),
+                rho=Parameter(torch.Tensor(self.out_features).normal_(0, 1)),
             )
             assert isinstance(self.bias_var_posterior, ParameterDistribution)
             assert any(True for _ in self.bias_var_posterior.parameters())
@@ -64,10 +64,10 @@ class BayesianLayer(Module):
         # estimate of weight variational posterior, start close to zero for numerical stability; these will be optimized with time.
         self.weights_var_posterior = MultivariateDiagonalGaussian(
             mu=Parameter(
-                torch.Tensor(self.out_features, self.in_features).normal_(0, 0.5)
+                torch.Tensor(self.out_features, self.in_features).normal_(0, 1)
             ),
             rho=Parameter(
-                torch.Tensor(self.out_features, self.in_features).normal_(0.5, 0.25)
+                torch.Tensor(self.out_features, self.in_features).normal_(0, 1)
             ),
         )
         assert isinstance(self.weights_var_posterior, ParameterDistribution)

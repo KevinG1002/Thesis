@@ -31,7 +31,7 @@ def run():
     bnn = SimpleBNN(
         784,
         len(train_set.classes),
-        UnivariateGaussian(0, 0.5),
+        UnivariateGaussian(0, 4),
     )
 
     vi_experiment = VITemplate(
@@ -40,7 +40,7 @@ def run():
         test_set=test_set,
         val_set=None,
         num_classes=len(train_set.classes),
-        batch_size=64,
+        batch_size=128,
         num_mc_samples=30,
         epochs=50,
         optim=Adam(bnn.parameters(), 0.001, weight_decay=1e-3),

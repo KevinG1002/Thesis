@@ -11,7 +11,7 @@ class LaPlaceDistribution(ParameterDistribution):
 
     @property
     def scale_factor(self):
-        return torch.log(1 + torch.exp(self.rho))
+        return torch.log(1 + torch.exp(torch.Tensor([self.rho])))
 
     def log_likelihood(self, values: torch.Tensor) -> torch.Tensor:
         return Laplace(self.mu, self.scale_factor).log_prob(values)
