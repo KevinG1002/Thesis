@@ -122,39 +122,39 @@ class Plot(object):
                 ax[idx % 3, col_idx].histogram()
 
 
-def plot_roc_curve(experiment_cfg: dict):
-    plt.clf()
-    plt.plot(thresholds, roc_scores)
-    plt.xlabel("Probability thresholds")
-    plt.ylabel("ROC Scores")
-    plt.yticks(np.arange(0, 1, 0.1))
-    plt.xticks(np.arange(0, 1, 0.1))
-    plt.title(
-        f"{experiment_cfg.model_name} on {experiment_cfg.dataset_name} - ROC Curves"
-    )
-    plt.tight_layout()
-    plt.savefig(
-        os.path.dirname(f"{experiment_cfg.dir_path}")
-        + f"/{experiment_cfg.experiment_name}_ROC_curves.png",
-        dpi=400,
-    )
+# def plot_roc_curve(experiment_cfg: dict):
+#     plt.clf()
+#     # plt.plot(thresholds, roc_scores)
+#     plt.xlabel("Probability thresholds")
+#     plt.ylabel("ROC Scores")
+#     plt.yticks(np.arange(0, 1, 0.1))
+#     plt.xticks(np.arange(0, 1, 0.1))
+#     plt.title(
+#         f"{experiment_cfg.model_name} on {experiment_cfg.dataset_name} - ROC Curves"
+#     )
+#     plt.tight_layout()
+#     plt.savefig(
+#         os.path.dirname(f"{experiment_cfg.dir_path}")
+#         + f"/{experiment_cfg.experiment_name}_ROC_curves.png",
+#         dpi=400,
+#     )
 
 
-def plot_confusion_matrix(experiment):
-    pass
+# def plot_confusion_matrix(experiment):
+#     pass
 
 
-def val_loss_plot():
-    pass
+# def val_loss_plot():
+#     pass
 
 
-def log_odds_ratio():
-    pass
+# def log_odds_ratio():
+#     pass
 
 
-def val_accuracy_plot():
-    pass
+# def val_accuracy_plot():
+#     pass
 
 
-def weight_histogram_plot():
-    pass
+# def weight_histogram_plot():
+#     pass
