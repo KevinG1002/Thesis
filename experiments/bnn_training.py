@@ -1,9 +1,13 @@
 import sys
 import torch
-from torchvision.datasets import MNIST
+from torchvision.datasets import MNIST, CIFAR10
 import torchvision.transforms as transforms
 from torch.optim import SGD, Adam
 from torch.nn import CrossEntropyLoss
+from torch.nn.modules.loss import _Loss
+import torch.nn as nn
+from torch.distributions import Uniform
+import os
 
 sys.path.append("..")
 
@@ -11,45 +15,108 @@ from frameworks.vi_template import VITemplate
 from models.bnn import SimpleBNN
 from distributions.gaussians import *
 from distributions.laplace import LaPlaceDistribution
+from distributions.uniform import UniformDistribution
+from utils.params import *
 
 
-def run():
+class CONFIG:
+    def __init__(
+        self,
+        model: nn.Module,
+        dataset_dir: str = "../datasets/MNIST",
+        epochs: int = 50,
+        batch_size: int = 32,
+        learning_rate: float = 1e-3,
+        weight_decay: float = 0.999,
+        num_mc_samples: int = 25,
+        optimizer: torch.optim.Optimizer = None,
+        loss_function: _Loss = None,
+        prior_dist: ParameterDistribution = None,
+        im_transforms: transforms = None,
+    ):
+        self.model = model
+        self.dataset_dir = dataset_dir
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.num_mc_samples = num_mc_samples
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.optimizer = (
+            optimizer
+            if optimizer
+            else Adam(
+                self.model.parameters(),
+                lr=self.learning_rate,
+                weight_decay=self.weight_decay,
+            )
+        )
+        self.prior_dist = prior_dist if prior_dist else UnivariateGaussian(0, 1)
+        self.loss_function = loss_function if loss_function else CrossEntropyLoss()
 
-    train_set = MNIST(
-        root="../datasets",
-        train=True,
-        download=False,
-        transform=transforms.ToTensor(),
-    )
-    test_set = MNIST(
-        root="../datasets",
-        train=False,
-        download=False,
-        transform=transforms.ToTensor(),
-    )
+        self.im_transforms = im_transforms if im_transforms else transforms.ToTensor()
+        if os.path.dirname(self.dataset_dir) == "MNIST":
+            self.train_set = MNIST(
+                self.dataset_dir,
+                train=True,
+                transforms=self.im_transforms,
+            )
+            self.test_set = MNIST(
+                self.dataset_dir,
+                train=True,
+                transforms=self.im_transforms,
+            )
+        elif os.path.dirname(self.dataset_dir) == "CIFAR10":
+            self.train_set = CIFAR10(
+                self.dataset_dir,
+                train=True,
+                transforms=self.im_transforms,
+            )
+            self.test_set = CIFAR10(
+                self.dataset_dir,
+                train=True,
+                transforms=self.im_transforms,
+            )
+        else:
+            raise NotImplementedError
 
-    bnn = SimpleBNN(
-        784,
-        len(train_set.classes),
-        UnivariateGaussian(0, 4),
-    )
+
+def run(cfg: CONFIG):
 
     vi_experiment = VITemplate(
-        model=bnn,
-        train_set=train_set,
-        test_set=test_set,
+        model=cfg.model,
+        train_set=cfg.train_set,
+        test_set=cfg.test_set,
         val_set=None,
-        num_classes=len(train_set.classes),
-        batch_size=128,
-        num_mc_samples=30,
-        epochs=50,
-        optim=Adam(bnn.parameters(), 0.001, weight_decay=1e-3),
-        likelihood_criterion=CrossEntropyLoss(reduction="sum"),
-        device="cpu",
+        num_classes=len(cfg.train_set.classes),
+        batch_size=cfg.batch_size,
+        num_mc_samples=cfg.num_mc_samples,
+        epochs=cfg.epochs,
+        optim=cfg.optimizer,
+        likelihood_criterion=cfg.loss_function,
+        device=cfg.device,
     )
 
     vi_experiment.train()
     vi_experiment.evaluate()
+
+
+def main():
+    bnn = SimpleBNN(
+        784,
+        10,
+        UnivariateGaussian(0, 0.5),
+    )
+    hyperparams = argument_parser()
+
+    cfg = CONFIG(
+        model=bnn,
+        dataset_dir="../dataset/MNIST",
+        epochs=hyperparams.num_epochs,
+        batch_size=hyperparams.batch_size,
+        learning_rate=hyperparams.learning_rate,
+        weight_decay=hyperparams.weight_decay,
+    )
 
 
 if __name__ == "__main__":
