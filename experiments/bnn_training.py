@@ -81,7 +81,7 @@ class CONFIG:
             raise NotImplementedError
 
 
-def run(cfg: CONFIG):
+def run_bnn_training(cfg: CONFIG):
 
     vi_experiment = VITemplate(
         model=cfg.model,
@@ -107,18 +107,19 @@ def main():
         10,
         UnivariateGaussian(0, 0.5),
     )
-    hyperparams = argument_parser()
+    params = argument_parser()
 
     cfg = CONFIG(
         model=bnn,
-        dataset_dir="../dataset/MNIST",
-        epochs=hyperparams.num_epochs,
-        batch_size=hyperparams.batch_size,
-        learning_rate=hyperparams.learning_rate,
-        weight_decay=hyperparams.weight_decay,
+        dataset_dir=params.dataset,
+        epochs=params.num_epochs,
+        batch_size=params.batch_size,
+        learning_rate=params.learning_rate,
+        weight_decay=params.weight_decay,
     )
+    run_bnn_training(cfg)
 
 
 if __name__ == "__main__":
-    run()
+    main()
     # print(torch.log(torch.exp(torch.tensor(-2))))

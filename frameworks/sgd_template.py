@@ -127,3 +127,7 @@ class SupervisedLearning(BasicLearning):
                 float(correct_preds / len(self.test_set)),
             )
         )
+        return {
+            "test_loss": test_loss / len(self.test_dataloader),
+            "accuracy": float(correct_preds / len(self.test_set)),
+        }
