@@ -14,7 +14,7 @@ from models.mlp import MLP
 from frameworks.sgd_template import SupervisedLearning
 from utils.params import argument_parser
 
-torch.manual_seed(17)
+torch.manual_seed(16)
 
 
 class CONFIG:
@@ -60,7 +60,7 @@ class CONFIG:
             )
             self.test_set = MNIST(
                 self.dataset_dir,
-                train=True,
+                train=False,
                 transform=self.im_transforms,
                 download=True,
             )
@@ -73,7 +73,7 @@ class CONFIG:
             )
             self.test_set = CIFAR10(
                 self.dataset_dir,
-                train=True,
+                train=False,
                 transform=self.im_transforms,
                 download=True,
             )
@@ -82,8 +82,10 @@ class CONFIG:
 
 
 def run_basic_training(cfg: CONFIG):
+    print("Supervised Learning method model id:", id(cfg.model))
+    print("Supervised Learning method optimizer id:", id(cfg.optimizer))
     supervised_learning_experiment = SupervisedLearning(
-        model=copy.deepcopy(cfg.model),
+        model=cfg.model,
         train_set=cfg.train_set,
         test_set=cfg.test_set,
         val_set=None,
@@ -96,9 +98,7 @@ def run_basic_training(cfg: CONFIG):
 
     supervised_learning_experiment.train()
     performance_dict = supervised_learning_experiment.test()
-    print(performance_dict["test_loss"].numpy())
-    trained_model = copy.deepcopy(cfg.model)
-    return trained_model, performance_dict
+    return supervised_learning_experiment.model, performance_dict
 
 
 def main():
@@ -118,6 +118,7 @@ def main():
         params.weight_decay,
         optimizer,
         loss_func,
+        transforms.ToTensor(),
     )
     run_basic_training(cfg)
 
