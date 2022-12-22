@@ -62,12 +62,15 @@ class SupervisedLearning(BasicLearning):
     def train(self):
         self.train_dataloader = self._instantiate_train_dataloader()
         self.val_dataloader = self._instantiate_val_dataloader()
-
+        print("\nTrain method model id:", id(self.model))
+        print("Train method optim id:", id(self.optim))
+        self.model.train(True)
         # Beginning of training loop #
         for epoch in range(self.epochs):
-            self.optim.zero_grad()
             print("\n\n")
+            loss = 0
             for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
+                self.optim.zero_grad()
                 flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
                 one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y]
                 pred_y = self.model(flattened_mbatch_x)
@@ -84,6 +87,8 @@ class SupervisedLearning(BasicLearning):
                 % (epoch + 1)
             )
             # Beginning of validation loop #
+            print("Val method model id:", id(self.model))
+            print("Val method optim id:", id(self.optim))
             with torch.no_grad():
                 val_loss = 0.0
                 correct_preds = 0
@@ -108,6 +113,9 @@ class SupervisedLearning(BasicLearning):
 
     @torch.no_grad()
     def test(self):
+        print("Test method model id:", id(self.model))
+        print("Test method optim id:", id(self.optim))
+        self.model.train(False)
         self.test_dataloader = self._instantiate_test_dataloader()
         test_loss = 0.0
         correct_preds = 0
