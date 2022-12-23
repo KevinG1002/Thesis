@@ -231,11 +231,205 @@ class UpBlock(nn.Module):
             self.attention = nn.Identity()
 
     def forward(self, x: torch.Tensor, t: torch.Tensor):
+        """
+        Args:
+            x: batch of input samples with shape: [batch_size, n_channels, height, width]
+            t: batch of timestep embeddings with shape: [batch_size, time_channels]
+        """
         x = self.res(x, t)
         x = self.attention(x)
         return x
 
 
+class MiddleBlock(nn.Module):
+    def __init__(
+        self,
+        n_channels: int,
+        time_channels: int,
+    ):
+        """
+        The MiddleBlock component of the Unet resides in the middle of the architecture, i.e
+        at its bottleneck where the resolution is the lowest. The MiddleBlock is composed of three components: a ResidualBlock, an
+        AttentionBlock followed by another ResidualBlock. Here, no contraction or expansion is made in terms of the
+        resolution nor depth of our samples, i.e., in_channels = out_channels = n_channels throughout.
+        Args:
+            - n_channels: The number of channels in input to MiddleBlock.
+            - time_channels: The number of time channels in input to MiddleBlock.
+        """
+        super().__init__()
+        self.res1 = ResidualBlock(n_channels, n_channels, time_channels)
+        self.attention = AttentionBlock(n_channels)
+        self.res2 = ResidualBlock(n_channels, n_channels, time_channels)
+
+    def forward(self, x: torch.Tensor, t: torch.Tensor):
+        """
+        Args:
+            x: batch of input samples with shape: [batch_size, n_channels, height, width]
+            t: batch of timestep embeddings with shape: [batch_size, time_channels]
+        """
+        x = self.res1(x, t)
+        x = self.attention(x)
+        x = self.res2(x, t)
+        return x
+
+
+class Upsample(nn.Module):
+    def __init__(self, n_channels: int):
+        """
+        Upsample block scales-up the resolution by a factor of two.
+        For example, if resolution is (4 x 4), this block will upscale it to (8x8)
+        Args:
+            - n_channels: number of channels in the input.
+        """
+        super().__init__()
+        self.conv = nn.ConvTranspose2d(
+            n_channels, n_channels, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1)
+        )
+
+    def forward(self, x: torch.Tensor, t: torch.Tensor):
+        """
+        t not used but preserved to match function signature with other blocks
+        Args:
+            x: batch of input samples with shape: [batch_size, n_channels, height, width]
+            t: batch of timestep embeddings with shape: [batch_size, time_channels]
+        """
+        _ = t
+        return self.conv(x)
+
+
+class Downsample(nn.Module):
+    def __init__(self, n_channels: int) -> None:
+        """
+        Downsample block scales the resolution of the input by a factor of 1/2.
+        So, if the input image has resolution (4x4), for instance, the output after the downsample block
+        will be (2x2).
+        Args:
+            - n_channels: number of channels in the input.
+        """
+        super().__init__()
+        self.conv = nn.Conv2d(n_channels, n_channels, (3, 3), (2, 2), (1, 1))
+
+    def forward(self, x: torch.Tensor, t: torch.Tensor):
+        """
+        t not used but preserved to match function signature with other blocks
+        Args:
+            x: batch of input samples with shape: [batch_size, n_channels, height, width]
+            t: batch of timestep embeddings with shape: [batch_size, time_channels]
+        """
+        _ = t
+        return self.conv(x)
+
+
 class DDPMUNet(nn.Module):
-    def __init__(self):
-        pass
+    def __init__(
+        self,
+        sample_channels: int = 1,
+        n_channels: int = 64,
+        ch_dims: list[int] = [1, 2, 2, 4],
+        is_attention: list[bool] = [False, False, True, True],
+        n_blocks: int = 1,
+    ):
+        """
+        UNet used to predict addednoise in diffusion process. This UNet is used in combination with the DDPM.
+        Args:
+            - sample_channels: number of channels in the input sample. 1 for 2D matrix representing weights.
+            - n_channels: number of channels in the very first feature map we transform our input samples to.
+            - ch_dims: is a list that denotes the channel numbers at each resolution. Number of channels at given
+            at i-th resolution is calculated as: ch_dims[i] * n_channels.
+            - is_attention: list of booleans denoting if attention should be used in a given resolution.
+            - n_blocks: denotes the number of Up & Down blocks at each resolution; Symmetry is preserved in this architecture,
+            so number of up blocks will be equal to the number of down blocks.
+        """
+        super().__init__()
+        n_resolutions = len(ch_dims)  # number of resolutions
+        self.sample_projection = nn.Conv2d(
+            sample_channels, n_channels, kernel_size=(3, 3), padding=(1, 1)
+        )  # Projection of sample into feature map with n_channels.
+        self.time_embedding = TimeEmbedding(n_channels * 4)  # Time Embedding Layer
+
+        ## First Half of UNet: Decreasing the resolution ##
+        down = []
+
+        # Number of channels
+        out_channels = in_channels = n_channels
+
+        # For each resolution do:
+        for i in range(n_resolutions):
+            out_channels = (
+                n_channels * ch_dims[i]
+            )  # number of channels in given resolution
+            for _ in range(n_blocks):
+                down.append(
+                    DownBlock(
+                        in_channels, out_channels, n_channels * 4, is_attention[i]
+                    )
+                )
+            if (
+                i < n_resolutions - 1
+            ):  # Downsample for each resolution appart from the last
+                down.append(Downsample(in_channels))
+
+        # Resulting Down structure: [DownBlock_res_1, Downsample_res_1, DownBlock_res_2, Downsample_res_2, ..., DownBlock_res_n-1, Downsample_res_n-1, DownBlock_res_n]
+
+        self.down = nn.ModuleList(down)
+
+        self.middle = MiddleBlock(out_channels, n_channels * 4)
+
+        up = []
+        in_channels = out_channels
+
+        for i in reversed(
+            range(n_resolutions)
+        ):  # will iterate over [len(n_res), len(n_res) -1, ..., 1, 0]
+            out_channels = in_channels
+            for _ in range(n_blocks):
+                up.append(
+                    UpBlock(in_channels, out_channels, n_channels * 4, is_attention[i])
+                )
+            out_channels = (
+                in_channels // ch_dims[i]
+            )  # reduce number of channels for output
+            up.append(
+                UpBlock(in_channels, out_channels, n_channels * 4, is_attention[i])
+            )  # Add a block to reduce the number of channels
+            in_channels = out_channels
+
+            if i > 0:  # Upsample signal at all resolutions expect last
+                up.append(Upsample(in_channels))
+
+        self.up = nn.ModuleList(up)
+
+        self.norm = nn.GroupNorm(8, n_channels)
+        self.activation = nn.SiLU()
+        self.final_layer = nn.Conv2d(
+            in_channels, sample_channels, kernel_size=(3, 3), padding=(1, 1)
+        )
+
+    def forward(self, x: torch.Tensor, t: torch.Tensor):
+        t = self.time_embedding(t)
+        x = self.sample_projection(x)
+
+        h = [
+            x
+        ]  # variable that stores outputs of each resolution for eventual skip connection.
+
+        # For each block in down list of modules (first half of UNet), perform a forward pass of the input and then store the output in h_list.
+        for m in self.down:
+            x = m(x, t)
+            h.append(x)
+
+        # Perform forward pass on middle-block with output from list of downblocks:
+        x = self.middle(x, t)
+
+        # Perform forward pass with output of middle block on modules of second half of UNet (upwards):
+        for u in self.up:
+            if isinstance(
+                u, Upsample
+            ):  # If current block is an UpSampling module, perform forward pass witout skip-connections.
+                x = u(x, t)
+            else:  # Otherwise, Concatenate skip-connection with current input, then do forward pass.
+                skip = h.pop()
+                x = torch.cat([x, skip], dim=1)
+                x = u(x, t)
+
+        return self.final_layer((self.activation(self.norm(x))))
