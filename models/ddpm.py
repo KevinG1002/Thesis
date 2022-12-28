@@ -18,7 +18,9 @@ class DDPM:
         self.eps_nn = eps_nn
         self.betas = torch.linspace(0.00001, 0.01, diffusion_steps).to(device)
         self.alphas = 1 - self.betas
-        self.alpha_bar = torch.cumprod(self.alphas, dim=0)
+        self.alpha_bar = torch.cumprod(
+            self.alphas, dim=0
+        )  # creates tensor of same dimension as self.alphas but with each element being the result of the cumulative product up to this point, i.e. it looks like: [1, 1*0.999, 1*0.999*0.998, 1*0.999*0.998*0.997,...]
         self.diffusion_steps = diffusion_steps
         self.covariance_reverse_process = (
             self.betas
@@ -35,8 +37,8 @@ class DDPM:
             - x0: original sample from forward diffusion takes place
             - t: number of t'th step in diffusion process.
         """
-        alpha_bar_t = self.compute_alpha_bar(self.alphas[:t])
-        mean = alpha_bar_t ** (1 / 2) * x0
+        alpha_bar_t = self.compute_alpha_bar(t)
+        mean = torch.einsum("abcd,a->abcd", x0, alpha_bar_t ** (0.5))
         covariance = 1 - alpha_bar_t
         return mean, covariance
 
@@ -48,10 +50,9 @@ class DDPM:
         process.
         """
         mean, cov = self.q_xt_given_x0(x0, t)
-        if not eps:
+        if eps is not None:
             eps = torch.distributions.Normal(0, 1).sample(x0.size())
-
-        return mean + eps * (cov ** (1 / 2))
+        return mean + torch.einsum("abcd, a->abcd", eps, (cov ** (1 / 2)))
 
     def sample_p_t_reverse_process(self, xt: torch.Tensor, t: torch.Tensor):
         """
@@ -64,7 +65,7 @@ class DDPM:
             xt, t
         )  # Get predicted noise from reverse process from model that estimates it, \epsilon_\theta(x_t, t), which takes current diffusion sample, x_t and diffusion step t as inputs
         alpha_t = self.alphas[t]
-        alpha_bar_t = self.compute_alpha_bar(self.alphas[:t])
+        alpha_bar_t = self.compute_alpha_bar(t)
         eps_theta_factor = (1 - alpha_t) / (1 - alpha_bar_t) ** (1 / 2)
 
         mean_p_t = (1 / alpha_t ** (1 / 2)) * (xt - eps_theta_factor * eps_theta)
@@ -82,15 +83,14 @@ class DDPM:
 
         # Sample a random t-step for each sample in the batch
         t = torch.randint(
-            0, self.diffusion_steps, batch_size, device=self.device, dtype=torch.long
+            0, self.diffusion_steps, (batch_size,), device=self.device, dtype=torch.long
         )
         if not noise:
             noise = torch.distributions.Normal(0, 1).sample(x0.size())
-
         xt = self.sample_q_xt_given_x0(x0, t, noise)
         eps_theta = self.eps_nn(xt, t)
         return F.mse_loss(noise, eps_theta)
 
-    @classmethod
-    def compute_alpha_bar(alphas: torch.Tensor):
-        return torch.cumprod(alphas, dim=0)
+    def compute_alpha_bar(self, t: torch.Tensor):
+        alphas = torch.gather(self.alpha_bar, 0, t)
+        return alphas

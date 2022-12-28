@@ -37,13 +37,17 @@ class TimeEmbedding(nn.Module):
         embedding = torch.cat((embedding.sin(), embedding.cos()), dim=1)
 
         embedding = self.activation(self.fc1(embedding))
-        embedding = self.fc1(embedding)
+        embedding = self.fc2(embedding)
         return embedding
 
 
 class ResidualBlock(nn.Module):
     def __init__(
-        self, in_channels: int, out_channels: int, time_channels: int, n_groups: int
+        self,
+        in_channels: int,
+        out_channels: int,
+        time_channels: int,
+        n_groups: int = 32,
     ):
         """
         ResidualBlock class for wider UNet implementation.
@@ -85,7 +89,7 @@ class ResidualBlock(nn.Module):
             self.activation_1(self.norm1(x))
         )  # First conv layer with group normalization
         h += self.time_embedding(t)[
-            :, :, :None, None
+            :, :, None, None
         ]  # Add time embedding to output of first conv_layer
         h = self.conv2(
             self.activation_2(self.norm2(h))
@@ -114,7 +118,7 @@ class AttentionBlock(nn.Module):
         if not d_k:
             d_k = n_channels
 
-        self.norm = nn.GroupNorm(n_groups, n_channels)  # Normalization layer
+        # self.norm = nn.GroupNorm(n_groups, n_channels)  # Normalization layer
         self.projection = nn.Linear(
             n_channels, n_heads * d_k * 3
         )  # Projection for query, key and values
@@ -223,7 +227,10 @@ class UpBlock(nn.Module):
         """
         super().__init__()
         self.res = ResidualBlock(
-            in_channels + out_channels, out_channels, time_channels
+            in_channels + out_channels,
+            out_channels,
+            time_channels,
+            16,
         )
         if has_attention:
             self.attention = AttentionBlock(out_channels)
@@ -356,7 +363,7 @@ class DDPMUNet(nn.Module):
         # For each resolution do:
         for i in range(n_resolutions):
             out_channels = (
-                n_channels * ch_dims[i]
+                in_channels * ch_dims[i]
             )  # number of channels in given resolution
             for _ in range(n_blocks):
                 down.append(
@@ -364,6 +371,7 @@ class DDPMUNet(nn.Module):
                         in_channels, out_channels, n_channels * 4, is_attention[i]
                     )
                 )
+                in_channels = out_channels
             if (
                 i < n_resolutions - 1
             ):  # Downsample for each resolution appart from the last
@@ -386,6 +394,7 @@ class DDPMUNet(nn.Module):
                 up.append(
                     UpBlock(in_channels, out_channels, n_channels * 4, is_attention[i])
                 )
+
             out_channels = (
                 in_channels // ch_dims[i]
             )  # reduce number of channels for output
@@ -414,6 +423,7 @@ class DDPMUNet(nn.Module):
         ]  # variable that stores outputs of each resolution for eventual skip connection.
 
         # For each block in down list of modules (first half of UNet), perform a forward pass of the input and then store the output in h_list.
+
         for m in self.down:
             x = m(x, t)
             h.append(x)
@@ -429,7 +439,7 @@ class DDPMUNet(nn.Module):
                 x = u(x, t)
             else:  # Otherwise, Concatenate skip-connection with current input, then do forward pass.
                 skip = h.pop()
-                x = torch.cat([x, skip], dim=1)
+                x = torch.cat((x, skip), dim=1)
                 x = u(x, t)
 
         return self.final_layer((self.activation(self.norm(x))))
