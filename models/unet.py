@@ -35,7 +35,6 @@ class TimeEmbedding(nn.Module):
         embedding = torch.exp(torch.arange(half_dim, device=t.device) * -embedding)
         embedding = t[:, None] * embedding[None, :]
         embedding = torch.cat((embedding.sin(), embedding.cos()), dim=1)
-
         embedding = self.activation(self.fc1(embedding))
         embedding = self.fc2(embedding)
         return embedding
@@ -332,8 +331,8 @@ class DDPMUNet(nn.Module):
         self,
         sample_channels: int = 1,
         n_channels: int = 64,
-        ch_dims: list[int] = [1, 2, 2, 4],
-        is_attention: list[bool] = [False, False, True, True],
+        ch_dims: "list[int]" = [1, 2, 2, 4],
+        is_attention: "list[bool]" = [False, False, True, True],
         n_blocks: int = 1,
     ):
         """

@@ -16,9 +16,9 @@ class CONFIG:
         n_diffusion_steps: int,
         sample_channels: int,
         num_channels: int = 64,
-        sample_size: tuple[int] = (24, 24),
-        channel_mulipliers: list[int] = [1, 2, 2, 4],
-        is_attention: list[bool] = [False, False, False, False],
+        sample_size: "tuple[int]" = (24, 24),
+        channel_mulipliers: "list[int]" = [1, 2, 2, 4],
+        is_attention: "list[bool]" = [False, False, False, False],
         batch_size: int = 16,
         epochs: int = 50,
         learning_rate: float = 1e-4,
@@ -82,7 +82,7 @@ def run(cfg: CONFIG):
 
 def main():
     dataset_name = "MNIST"
-    cfg = CONFIG(dataset_name, 100, 1)
+    cfg = CONFIG(dataset_name, 100, 1, epochs=1)
     run(cfg)
 
 

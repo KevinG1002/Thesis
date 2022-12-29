@@ -26,9 +26,9 @@ class DDPMDiffusion:
         diffusion_steps: int,
         sample_channels: int,
         num_channels: int,
-        sample_dimensions: tuple[int],
-        channel_multipliers: list[int],
-        is_attention: list[bool],
+        sample_dimensions: "tuple[int]",
+        channel_multipliers: "list[int]",
+        is_attention: "list[bool]",
         num_gen_samples: int,
         batch_size: int,
         learning_rate: float,
@@ -76,7 +76,7 @@ class DDPMDiffusion:
 
         self.noise_predictor = DDPMUNet(
             sample_channels, num_channels, channel_multipliers, is_attention
-        )
+        ).to(self.device)
         self.ddpm = DDPM(self.noise_predictor, self.diffusion_steps, self.device)
 
         self.optimizer = Adam(self.noise_predictor.parameters(), self.learning_rate)
@@ -119,4 +119,6 @@ class DDPMDiffusion:
                 x_t = self.ddpm.sample_p_t_reverse_process(
                     x_t, x_t.new_full((self.num_gen_samples,), t, dtype=torch.long)
                 )
-        plt.imshow(x_t)
+        sample1, sample2, sample3, sample4, sample5 = torch.chunk(x_t, 5, 0)
+        plt.imshow(sample1.cpu().squeeze().numpy())
+        plt.imsave("sample1.png", sample1.cpu().squeeze().numpy())
