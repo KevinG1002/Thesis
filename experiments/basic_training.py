@@ -85,7 +85,7 @@ def run_basic_training(cfg: CONFIG):
     print("Supervised Learning method model id:", id(cfg.model))
     print("Supervised Learning method optimizer id:", id(cfg.optimizer))
     supervised_learning_experiment = SupervisedLearning(
-        model=cfg.model,
+        model=cfg.model.to(cfg.device),
         train_set=cfg.train_set,
         test_set=cfg.test_set,
         val_set=None,
@@ -94,6 +94,7 @@ def run_basic_training(cfg: CONFIG):
         batch_size=cfg.batch_size,
         optim=cfg.optimizer,
         criterion=cfg.loss_function,
+        device=cfg.device,
     )
 
     supervised_learning_experiment.train()
@@ -103,6 +104,7 @@ def run_basic_training(cfg: CONFIG):
 
 def main():
     model = MLP()
+    print(model)
     loss_func = CrossEntropyLoss()
     params = argument_parser()
     optimizer = Adam(
