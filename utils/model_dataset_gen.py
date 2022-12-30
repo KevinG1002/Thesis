@@ -4,16 +4,15 @@ import json
 import torch.nn as nn
 import sys
 import os
-from params import *
 from torch.nn import CrossEntropyLoss
 from torchvision.datasets import MNIST, CIFAR10
 import torchvision.transforms as transforms
 from torch.optim import Adam
-
-sys.path.append("../")
 from experiments.basic_training import run_basic_training, CONFIG
 from models.mlp import MLP
 from frameworks.sgd_template import SupervisedLearning
+from utils.params import argument_parser
+from utils.weight_transformations import print_weight_dims
 
 
 class GENCONFIG:
@@ -62,14 +61,6 @@ class GENCONFIG:
             raise NotImplementedError
 
 
-# def reset_parameters(model: nn.Module):
-#     for layer in model.children():
-#         if hasattr(layer, "reset_parameters"):
-#             layer.reset_parameters()
-
-#     return model
-
-
 def run(cfg: GENCONFIG):
     if not os.path.exists(os.path.join(cfg.target_dir, "models/")):
         os.mkdir(f"{cfg.target_dir}/models/")
@@ -84,8 +75,6 @@ def run(cfg: GENCONFIG):
     ]
     for i in range(cfg.num_runs):
         model_path = f"{cfg.target_dir}models/mlp_mnist_model_{i}.pth"
-        print("\nModel Dataset Gen Model object id", id(models[i]))
-        print("Model Dataset Gen Optimizer object id", id(optimizers[i]))
         training_process = SupervisedLearning(
             model=models[i],
             train_set=cfg.train_set,

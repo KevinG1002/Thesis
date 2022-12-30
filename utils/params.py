@@ -2,9 +2,6 @@ import sys
 import argparse
 
 
-sys.path.append("../")
-
-
 def argument_parser():
     parser = argparse.ArgumentParser(description="Thesis experiment paramerter parser.")
     parser.add_argument("-d", "--dataset", default="../datasets/MNIST", type=str)
