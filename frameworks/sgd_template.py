@@ -20,6 +20,7 @@ class SupervisedLearning(BasicLearning):
         batch_size: int = 32,
         optim: Optimizer = None,
         criterion: _Loss = None,
+        device: str = "cpu",
     ):
         super().__init__()
         self.model = model
@@ -28,13 +29,10 @@ class SupervisedLearning(BasicLearning):
         self.epochs = epochs
         self.batch_size = batch_size
         self.val_set = val_set if val_set else self._instantiate_val_set()
-        self.optim = (
-            optim
-            if optim
-            else SGD(self.model.parameters(), lr=0.001, weight_decay=0.999)
-        )
+        self.optim = optim if optim else SGD(self.model.parameters(), lr=0.001)
         self.criterion = criterion if criterion else CrossEntropyLoss()
         self.num_classes = num_classes
+        self.device = device
 
     def _instantiate_val_set(self, val_split: float = 0.15):
         """
@@ -51,13 +49,19 @@ class SupervisedLearning(BasicLearning):
         return new_val_set
 
     def _instantiate_train_dataloader(self):
-        return DataLoader(dataset=self.train_set, batch_size=self.batch_size)
+        return DataLoader(
+            dataset=self.train_set, batch_size=self.batch_size, shuffle=True
+        )
 
     def _instantiate_test_dataloader(self):
-        return DataLoader(dataset=self.test_set, batch_size=self.batch_size)
+        return DataLoader(
+            dataset=self.test_set, batch_size=self.batch_size, shuffle=True
+        )
 
     def _instantiate_val_dataloader(self):
-        return DataLoader(dataset=self.val_set, batch_size=self.batch_size)
+        return DataLoader(
+            dataset=self.val_set, batch_size=self.batch_size, shuffle=True
+        )
 
     def train(self):
         self.train_dataloader = self._instantiate_train_dataloader()
@@ -71,6 +75,8 @@ class SupervisedLearning(BasicLearning):
             loss = 0
             for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
                 self.optim.zero_grad()
+                mbatch_x = mbatch_x.to(self.device)
+                mbatch_y = mbatch_y.to(self.device)
                 flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
                 one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y]
                 pred_y = self.model(flattened_mbatch_x)
@@ -93,6 +99,8 @@ class SupervisedLearning(BasicLearning):
                 val_loss = 0.0
                 correct_preds = 0
                 for idx, (mbatch_x, mbatch_y) in enumerate(self.val_dataloader):
+                    mbatch_x = mbatch_x.to(self.device)
+                    mbatch_y = mbatch_y.to(self.device)
                     flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
                     one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y]
                     pred_y = self.model(flattened_mbatch_x)
@@ -120,6 +128,8 @@ class SupervisedLearning(BasicLearning):
         test_loss = 0.0
         correct_preds = 0
         for mbatch_x, mbatch_y in self.test_dataloader:
+            mbatch_x = mbatch_x.to(self.device)
+            mbatch_y = mbatch_y.to(self.device)
             flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
             one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y]
             pred_y = self.model(flattened_mbatch_x)

@@ -1,11 +1,9 @@
-import torch, sys
+import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 from torchvision.datasets import MNIST, CIFAR10
 import torchvision.transforms as transforms
 from torchvision.transforms import ToTensor
-
-sys.path.append("../")
 from frameworks.ddpm_template import DDPMDiffusion
 
 
@@ -82,7 +80,7 @@ def run(cfg: CONFIG):
 
 def main():
     dataset_name = "MNIST"
-    cfg = CONFIG(dataset_name, 100, 1, epochs=1)
+    cfg = CONFIG(dataset_name, 100, 1, epochs=5)
     run(cfg)
 
 

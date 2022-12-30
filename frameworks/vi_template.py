@@ -105,7 +105,7 @@ class VITemplate(SupervisedLearning):
         self.test_dataloader = self._instantiate_test_dataloader()
         predicted_batch_probabilities = []
         with torch.no_grad():
-            for mbatch_x, mbatch_y in self.test_dataloader:
+            for mbatch_x, _ in self.test_dataloader:
                 mbatch_x = mbatch_x.to(self.device)
                 predict_probabilities = self.model.predict(
                     torch.flatten(mbatch_x, 1), 15
