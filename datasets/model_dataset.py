@@ -4,19 +4,19 @@ import os
 import torch.nn as nn
 from typing import Callable
 from torch.utils.data import Dataset
+from utils.weight_transformations import print_weight_dims, nn_to_2d_tensor
+from models.mlp import MLP, SimpleMLP
 
 
 class ModelsDataset(Dataset):
     def __init__(
         self,
-        root: str,
-        model_dir: str,
+        root_dir: str,
         model_labels_path: str,
-        manipulations: Callable,
         base_model: nn.Module,
+        manipulations: Callable = None,
     ):
-        self.root = root
-        self.model_dir = model_dir
+        self.root_dir = root_dir
         self.model_labels_path = model_labels_path
         with open(self.model_labels_path, "r") as labels:
             self.model_paths, self.model_labels = map(
@@ -26,7 +26,7 @@ class ModelsDataset(Dataset):
         self.base_model = base_model
 
     def __getitem__(self, index):
-        model_path = os.path.join(self.root, self.model_paths[index])
+        model_path = os.path.join(self.root_dir, self.model_paths[index])
         model = self.load_model(model_path)
         label = self.model_labels[index]
         if self.manipulations:
@@ -42,7 +42,6 @@ class ModelsDataset(Dataset):
     def num_samples(self):
         return len(self.model_labels)
 
-    @property
     def __len__(self):
         return self.num_samples
 
@@ -51,10 +50,27 @@ class ModelsDataset(Dataset):
 
     @property
     def flattened_sample_dim(self):
-        return torch.sum(
+        return sum(
             [
                 param.numel()
                 for param in self.base_model.parameters()
                 if param.requires_grad
             ]
         )
+
+
+def main():
+    dataset = ModelsDataset(
+        root_dir="/Users/kevingolan/Documents/Coding_Assignments/Thesis/datasets/model_dataset_MNIST/model_dataset.json",
+        model_labels_path="/Users/kevingolan/Documents/Coding_Assignments/Thesis/datasets/model_dataset_MNIST/model_dataset.json",
+        base_model=MLP(784, 10),
+    )
+    dataset.print_architecture()
+    print(len(dataset))
+    print(dataset.flattened_sample_dim)
+    print_weight_dims(dataset.base_model)
+    nn_to_2d_tensor(dataset.base_model)
+
+
+if __name__ == "__main__":
+    main()
