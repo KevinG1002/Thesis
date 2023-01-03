@@ -73,14 +73,24 @@ def run(cfg: CONFIG):
         dataset=cfg.dataset,
         device=cfg.device,
     )
-
+    print("Experiment config: %s" % diffusion_process.__dict__)
+    model_path = "../checkpoints/ddpm.pt"
     diffusion_process.train()
+    torch.save(
+        {
+            "epochs": cfg.epochs,
+            "unet_state_dict": diffusion_process.noise_predictor.state_dict(),
+            "optimizer_state_dict": diffusion_process.optimizer.state_dict(),
+            "loss": diffusion_process.loss,
+        },
+        model_path,
+    )
     diffusion_process.sample()
 
 
 def main():
     dataset_name = "MNIST"
-    cfg = CONFIG(dataset_name, 100, 1, epochs=5)
+    cfg = CONFIG(dataset_name, 100, 1, epochs=50)
     run(cfg)
 
 

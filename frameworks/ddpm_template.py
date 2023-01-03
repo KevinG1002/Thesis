@@ -89,14 +89,15 @@ class DDPMDiffusion:
             self.dataset, self.batch_size, shuffle=True, pin_memory=True
         )
         for epoch in range(self.epochs):
+            print("\nEpoch %d\n" % (epoch + 1))
             for idx, (mbatch_x, mbatch_y) in enumerate(self.dataloader):
                 mbatch_x = mbatch_x.to(self.device)
                 mbatch_y = mbatch_y.to(self.device)
                 self.optimizer.zero_grad()
-                loss = self.ddpm.l_simple(mbatch_x)
-                if idx % 100 == 0:
-                    print("Diffusion Loss %.3f" % loss)
-                loss.backward()
+                self.loss = self.ddpm.l_simple(mbatch_x)
+                if idx % 200 == 0:
+                    print("Diffusion Loss %.3f" % self.loss)
+                self.loss.backward()
                 self.optimizer.step()
             self.sample()
 
@@ -120,5 +121,8 @@ class DDPMDiffusion:
                     x_t, x_t.new_full((self.num_gen_samples,), t, dtype=torch.long)
                 )
         sample1, sample2, sample3, sample4, sample5 = torch.chunk(x_t, 5, 0)
-        plt.imshow(sample1.cpu().squeeze().numpy())
         plt.imsave("sample1.png", sample1.cpu().squeeze().numpy())
+        plt.imsave("sample2.png", sample2.cpu().squeeze().numpy())
+        plt.imsave("sample3.png", sample3.cpu().squeeze().numpy())
+        plt.imsave("sample4.png", sample4.cpu().squeeze().numpy())
+        plt.imsave("sample5.png", sample5.cpu().squeeze().numpy())
