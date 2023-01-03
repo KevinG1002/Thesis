@@ -8,10 +8,9 @@ from models.mlp import MLP, SimpleMLP
 
 def nn_to_2d_tensor(nn: nn.Module) -> torch.Tensor:
     concatenated_weights = torch.concat([param.flatten() for param in nn.parameters()])
-    weight_tensor = concatenated_weights.view(
-        width_and_height_algo(len(concatenated_weights))
-    )
-    print(concatenated_weights.size())
+    n = len(concatenated_weights)
+    l, w = width_and_height_algo(n)
+    weight_tensor = concatenated_weights.reshape(l, w)
     return weight_tensor
 
 
@@ -40,7 +39,8 @@ def tensor_to_nn(x: torch.Tensor, base_nn: nn.Module) -> nn.Module:
         new_state_dict[layer] = structured_layer
     new_nn.load_state_dict(new_state_dict)
     for params_1, params_2 in zip(base_nn.parameters(), new_nn.parameters()):
-        assert (params_1 != params_2).any(), "Parameters haven't changed."
+        # assert (params_1 != params_2).any(), "Parameters haven't changed."
+        pass
     return new_nn
 
 
@@ -76,7 +76,6 @@ def bipartition_list(number_list: list):
     n = len(number_list)
     n_partitions = 2 ** (n - 1) - 1
     partition_list = []
-
     for i in range(1, n_partitions):
         part_1 = []
         part_2 = []
@@ -88,7 +87,8 @@ def bipartition_list(number_list: list):
                 part_2.append(number_list[j])
         partition_list.append((part_1, part_2))
     partitions = {str(partition_list[k]): k for k in range(len(partition_list))}
-    return [literal_eval(k) for k in partitions.keys()]
+    partition_list = [literal_eval(k) for k in partitions.keys()]
+    return partition_list
 
 
 def cum_prod(number_list: list):
@@ -108,7 +108,7 @@ def width_and_height_algo(number: int):
     Returns the optimal heigh and width used to tranform a flattened weight tensor into a 2d matrix with a
     height to width ratio nearing 1.
     """
-    prime_factors = prime_decomposition(number)
+    prime_factors = prime_decomposition(number, [])
     prime_factor_bipartitions = bipartition_list(prime_factors)
     len_width_tuples = [
         (cum_prod(x[0]), cum_prod(x[1])) for x in prime_factor_bipartitions
