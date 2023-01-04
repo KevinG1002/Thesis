@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import torch.nn as nn
-from .metrics import *
+from utils.metrics import *
 
 
 class Plot(object):

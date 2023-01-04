@@ -1,16 +1,15 @@
 import torch
-from itertools import combinations
+import torch.nn.functional as F
 from ast import literal_eval
 import copy
 import torch.nn as nn
-from models.mlp import MLP, SimpleMLP
 
 
 def nn_to_2d_tensor(nn: nn.Module) -> torch.Tensor:
     concatenated_weights = torch.concat([param.flatten() for param in nn.parameters()])
     n = len(concatenated_weights)
     l, w = width_and_height_algo(n)
-    weight_tensor = concatenated_weights.reshape(l, w)
+    weight_tensor = concatenated_weights.view(1, l, w)  # .unsqueeze(0)
     return weight_tensor
 
 
@@ -119,3 +118,37 @@ def width_and_height_algo(number: int):
         if abs(elem[0] - elem[1]) == min([abs(x[0] - x[1]) for x in len_width_tuples])
     ][0]
     return optimal_len, optimal_width
+
+
+## Taken from https://stackoverflow.com/questions/66028743/how-to-handle-odd-resolutions-in-unet-architecture-pytorch
+## https://github.com/seoungwugoh/STM/blob/905f11492a6692dd0d0fa395881a8ec09b211a36/helpers.py#L33
+
+
+def pad_to(x: torch.Tensor, stride):
+    h, w = x.shape[-2:]
+
+    if h % stride > 0:
+        new_h = h + stride - h % stride
+    else:
+        new_h = h
+    if w % stride > 0:
+        new_w = w + stride - w % stride
+    else:
+        new_w = w
+    lh, uh = int((new_h - h) / 2), int(new_h - h) - int((new_h - h) / 2)
+    lw, uw = int((new_w - w) / 2), int(new_w - w) - int((new_w - w) / 2)
+    pads = (lw, uw, lh, uh)
+
+    # zero-padding by default.
+    # See others at https://pytorch.org/docs/stable/nn.functional.html#torch.nn.functional.pad
+    out = F.pad(x, pads, "constant", 0)
+
+    return out, pads
+
+
+def unpad(x, pad):
+    if pad[2] + pad[3] > 0:
+        x = x[:, :, pad[2] : -pad[3], :]
+    if pad[0] + pad[1] > 0:
+        x = x[:, :, :, pad[0] : -pad[1]]
+    return x

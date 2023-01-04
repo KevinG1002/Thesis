@@ -1,8 +1,6 @@
 import torch
 import copy
 import json
-import torch.nn as nn
-import sys
 import os
 from torch.nn import CrossEntropyLoss
 from torchvision.datasets import MNIST, CIFAR10
@@ -11,7 +9,6 @@ from torch.optim import Adam
 from models.mlp import MLP
 from frameworks.sgd_template import SupervisedLearning
 from utils.params import argument_parser
-from utils.weight_transformations import print_weight_dims
 
 
 class GENCONFIG:

@@ -59,23 +59,23 @@ class CONFIG:
             self.train_set = MNIST(
                 self.dataset_dir,
                 train=True,
-                transforms=self.im_transforms,
+                transform=self.im_transforms,
             )
             self.test_set = MNIST(
                 self.dataset_dir,
-                train=True,
-                transforms=self.im_transforms,
+                train=False,
+                transform=self.im_transforms,
             )
         elif os.path.dirname(self.dataset_dir) == "CIFAR10":
             self.train_set = CIFAR10(
                 self.dataset_dir,
                 train=True,
-                transforms=self.im_transforms,
+                transform=self.im_transforms,
             )
             self.test_set = CIFAR10(
                 self.dataset_dir,
-                train=True,
-                transforms=self.im_transforms,
+                train=False,
+                transform=self.im_transforms,
             )
         else:
             raise NotImplementedError

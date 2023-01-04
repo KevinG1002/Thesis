@@ -1,11 +1,8 @@
-import torch, sys
-import torchvision
-import torch.nn as nn
+import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import Adam
 import matplotlib.pyplot as plt
-
-sys.path.append("../")
+from datasets.model_dataset import ModelsDataset
 from models.ddpm import DDPM
 from models.unet import DDPMUNet
 
@@ -121,8 +118,22 @@ class DDPMDiffusion:
                     x_t, x_t.new_full((self.num_gen_samples,), t, dtype=torch.long)
                 )
         sample1, sample2, sample3, sample4, sample5 = torch.chunk(x_t, 5, 0)
-        plt.imsave("sample1.png", sample1.cpu().squeeze().numpy())
-        plt.imsave("sample2.png", sample2.cpu().squeeze().numpy())
-        plt.imsave("sample3.png", sample3.cpu().squeeze().numpy())
-        plt.imsave("sample4.png", sample4.cpu().squeeze().numpy())
-        plt.imsave("sample5.png", sample5.cpu().squeeze().numpy())
+        print("Sample Size:", sample1.size())
+        if isinstance(self.dataset, ModelsDataset):
+            sample1 = self.dataset.restore_original_tensor(sample1)
+            sample2 = self.dataset.restore_original_tensor(sample2)
+            sample3 = self.dataset.restore_original_tensor(sample3)
+            sample4 = self.dataset.restore_original_tensor(sample4)
+            sample5 = self.dataset.restore_original_tensor(sample5)
+            print("Sample Size (unpadded): ", sample1.size())
+
+        return sample1, sample2, sample3, sample4, sample5
+        # plt.imsave("sample1.png", sample1.cpu().squeeze().numpy())
+        # plt.imsave("sample2.png", sample2.cpu().squeeze().numpy())
+        # plt.imsave("sample3.png", sample3.cpu().squeeze().numpy())
+        # plt.imsave("sample4.png", sample4.cpu().squeeze().numpy())
+        # plt.imsave("sample5.png", sample5.cpu().squeeze().numpy())
+
+    @torch.no_grad()
+    def evaluate(self):
+        pass

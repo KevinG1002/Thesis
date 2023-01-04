@@ -229,7 +229,6 @@ class UpBlock(nn.Module):
             in_channels + out_channels,
             out_channels,
             time_channels,
-            16,
         )
         if has_attention:
             self.attention = AttentionBlock(out_channels)
@@ -422,7 +421,6 @@ class DDPMUNet(nn.Module):
         ]  # variable that stores outputs of each resolution for eventual skip connection.
 
         # For each block in down list of modules (first half of UNet), perform a forward pass of the input and then store the output in h_list.
-
         for m in self.down:
             x = m(x, t)
             h.append(x)

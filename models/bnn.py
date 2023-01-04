@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import sys
-
-sys.path.append("..")
 from frameworks.bayesian_layer import BayesianLayer
 from distributions.param_distribution import ParameterDistribution
 

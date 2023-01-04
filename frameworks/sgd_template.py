@@ -38,15 +38,19 @@ class SupervisedLearning(BasicLearning):
         """
         Internal method used to create a validation set if it isn't passed as an attribute upon class instantiation.
         Validation set created by splitting training set according to val_split float.
+        Validation set only created if training set is not None.
         """
-        new_train_len = int((1 - val_split) * len(self.train_set))
-        val_len = int(val_split * len(self.train_set))
-        self.train_set, new_val_set = random_split(
-            self.train_set,
-            (new_train_len, val_len),
-            generator=torch.Generator().manual_seed(42),
-        )
-        return new_val_set
+        if self.train_set:
+            new_train_len = int((1 - val_split) * len(self.train_set))
+            val_len = int(val_split * len(self.train_set))
+            self.train_set, new_val_set = random_split(
+                self.train_set,
+                (new_train_len, val_len),
+                generator=torch.Generator().manual_seed(42),
+            )
+            return new_val_set
+        else:
+            return None
 
     def _instantiate_train_dataloader(self):
         return DataLoader(
@@ -117,7 +121,7 @@ class SupervisedLearning(BasicLearning):
 
     @torch.no_grad()
     def test(self):
-        self.model.train(False)
+        self.model.eval()
         self.test_dataloader = self._instantiate_test_dataloader()
         test_loss = 0.0
         correct_preds = 0
