@@ -8,7 +8,6 @@ from torch.nn import CrossEntropyLoss
 from torchvision.datasets import MNIST, CIFAR10
 import torchvision.transforms as transforms
 from torch.optim import Adam
-from experiments.basic_training import run_basic_training, CONFIG
 from models.mlp import MLP
 from frameworks.sgd_template import SupervisedLearning
 from utils.params import argument_parser
@@ -31,6 +30,7 @@ class GENCONFIG:
         self.target_dir = target_dir
         self.target_dataset_path = target_dataset_path
         self.target_dataset_transforms = target_dataset_transforms
+
         if os.path.basename(self.target_dataset_path) == "MNIST":
             self.train_set = MNIST(
                 os.path.join(self.target_dataset_path),
@@ -60,19 +60,26 @@ class GENCONFIG:
         else:
             raise NotImplementedError
 
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        training_params = argument_parser()
+        self.learning_rate = training_params.learning_rate
+        self.epochs = training_params.num_epochs
+        self.batch_size = training_params.batch_size
+        self.num_runs = training_params.n_runs
+
 
 def run(cfg: GENCONFIG):
     if not os.path.exists(os.path.join(cfg.target_dir, "models/")):
         os.mkdir(f"{cfg.target_dir}/models/")
 
     dataset_dict = {}
-    params = argument_parser()
 
-    models = [MLP() for _ in range(cfg.num_runs)]
+    models = [MLP().to(cfg.device) for _ in range(cfg.num_runs)]
     optimizers = [
-        Adam(models[i].parameters(), lr=params.learning_rate)
-        for i in range(cfg.num_runs)
+        Adam(models[i].parameters(), lr=cfg.learning_rate) for i in range(cfg.num_runs)
     ]
+    print(cfg.device)
+
     for i in range(cfg.num_runs):
         model_path = f"{cfg.target_dir}models/mlp_mnist_model_{i}.pth"
         training_process = SupervisedLearning(
@@ -81,15 +88,15 @@ def run(cfg: GENCONFIG):
             test_set=cfg.test_set,
             val_set=None,
             num_classes=10,
-            epochs=params.num_epochs,
-            batch_size=params.batch_size,
+            epochs=cfg.epochs,
+            batch_size=cfg.batch_size,
             optim=optimizers[i],
             criterion=CrossEntropyLoss(),
+            device=cfg.device,
         )
         training_process.train()
         performance_dict = training_process.test()
         trained_model = copy.deepcopy(training_process.model)
-        # trained_model, performance_dict = run_basic_training(run_configs[i])
         torch.save(trained_model.state_dict(), model_path)
         dataset_dict[model_path] = float(performance_dict["test_loss"].numpy())
 
@@ -98,12 +105,14 @@ def run(cfg: GENCONFIG):
 
 def main():
     target_dataset = "MNIST"
-    target_directory = f"../datasets/model_dataset_{target_dataset}/"
+    target_directory = (
+        f"/scratch_net/bmicdl03/kgolan/Thesis/datasets/model_dataset_{target_dataset}/"
+    )
     if not os.path.exists(target_directory):
         os.mkdir(target_directory)
 
     cfg = GENCONFIG(
-        num_runs=10,
+        num_runs=1000,
         target_dir=target_directory,
         target_dataset_transforms=transforms.ToTensor(),
         target_dataset_path="../datasets/MNIST",

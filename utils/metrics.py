@@ -76,7 +76,7 @@ def roc_score(
     num_thresholds: int,
     prediction_probabilities: torch.Tensor,
     ground_truth: torch.Tensor,
-) -> tuple[np.ndarray]:
+) -> "tuple[np.ndarray]":
     roc_metric = MulticlassROC(num_classes, num_thresholds)
     fpr, tpr, thresholds = roc_metric(prediction_probabilities, ground_truth)
     return fpr.numpy(), tpr.numpy(), thresholds.numpy()
