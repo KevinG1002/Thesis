@@ -1,10 +1,16 @@
 import torch
+import random
 import json
 import os
+import copy
 import torch.nn as nn
 from typing import Callable
-from torch.utils.data import Dataset
-from utils.weight_transformations import print_weight_dims, nn_to_2d_tensor
+from torch.utils.data import Dataset, DataLoader
+from utils.weight_transformations import (
+    print_weight_dims,
+    nn_to_2d_tensor,
+    tensor_to_nn,
+)
 from models.mlp import MLP, SimpleMLP
 
 
@@ -26,15 +32,16 @@ class ModelsDataset(Dataset):
         self.base_model = base_model
 
     def __getitem__(self, index):
-        model_path = os.path.join(self.root_dir, self.model_paths[index])
-        model = self.load_model(model_path)
+        # model_path = os.path.join(self.model_paths[index])
+        loaded_model = self.load_model(self.model_paths[index])
         label = self.model_labels[index]
         if self.manipulations:
-            model = self.manipulations(model)
-        return model, label
+            manipulated_model = self.manipulations(loaded_model)
+            return manipulated_model, label
+        return loaded_model, label
 
     def load_model(self, model_path):
-        model = self.base_model
+        model = copy.deepcopy(MLP())
         model.load_state_dict(torch.load(model_path))
         return model
 
@@ -58,18 +65,25 @@ class ModelsDataset(Dataset):
             ]
         )
 
+    @property
+    def tensor_sample_dim(self):
+        idx = random.randint(0, 9)
+        randitem, _ = self.__getitem__(idx)
+        return randitem.size()
+
 
 def main():
     dataset = ModelsDataset(
         root_dir="/Users/kevingolan/Documents/Coding_Assignments/Thesis/datasets/model_dataset_MNIST/model_dataset.json",
         model_labels_path="/Users/kevingolan/Documents/Coding_Assignments/Thesis/datasets/model_dataset_MNIST/model_dataset.json",
         base_model=MLP(784, 10),
+        manipulations=nn_to_2d_tensor,
     )
-    dataset.print_architecture()
-    print(len(dataset))
-    print(dataset.flattened_sample_dim)
-    print_weight_dims(dataset.base_model)
-    nn_to_2d_tensor(dataset.base_model)
+
+    train_dataloader = DataLoader(dataset, 2, True)
+    for mbatch_x, mbatch_y in train_dataloader:
+        print(mbatch_x.size())
+        print(mbatch_y)
 
 
 if __name__ == "__main__":
