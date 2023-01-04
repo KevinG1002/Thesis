@@ -48,7 +48,7 @@ def print_weight_dims(base_nn: nn.Module):
         print(param.size())
 
 
-def prime_decomposition(number: int, prime_factors: list = []) -> list[int]:
+def prime_decomposition(number: int, prime_factors: list = []) -> "list[int]":
     """
     number (int): Denotes the length of the flattened tensor containing the weights of the MLP network.
     prime_factors (list): Empty list used to append prime factors found through recursion.
