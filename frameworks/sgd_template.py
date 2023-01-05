@@ -5,7 +5,7 @@ from torch.nn.modules.loss import _Loss
 import torch.nn.functional as F
 from torch.utils.data import Dataset, random_split, DataLoader
 from torch.optim import Optimizer, SGD
-from .basic_template import BasicLearning
+from frameworks.basic_template import BasicLearning
 
 
 class SupervisedLearning(BasicLearning):
