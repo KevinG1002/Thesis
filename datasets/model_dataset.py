@@ -82,6 +82,7 @@ class ModelsDataset(Dataset):
 
     @property
     def padding_used(self):
+        self.tensor_sample_dim  # initialises self.pads
         return self.pads
 
 
