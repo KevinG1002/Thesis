@@ -82,6 +82,7 @@ class DDPMDiffusion:
         """
         Train UNet in conjuction with DDPM.
         """
+        print("Training DDPM on device:", self.device)
         self.dataloader = DataLoader(
             self.dataset, self.batch_size, shuffle=True, pin_memory=True
         )
