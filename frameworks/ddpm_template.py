@@ -1,4 +1,5 @@
 import torch
+import os
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import Adam
 import matplotlib.pyplot as plt
@@ -32,6 +33,7 @@ class DDPMDiffusion:
         epochs: int,
         dataset: Dataset,
         device: str,
+        checkpoint_dir_path: str,
     ) -> None:
         """
         Diffusion Model template for training and generation of samples belonging to some dataset.
@@ -70,6 +72,7 @@ class DDPMDiffusion:
         self.epochs = epochs
         self.dataset = dataset
         self.device = device
+        self.checkpoint_dir_path = checkpoint_dir_path
 
         self.noise_predictor = DDPMUNet(
             sample_channels, num_channels, channel_multipliers, is_attention
@@ -98,6 +101,18 @@ class DDPMDiffusion:
                 self.loss.backward()
                 self.optimizer.step()
             self.sample()
+            if epoch % 4 == 0:
+                model_name = "ddpm_checkpoint_e_%d_loss_%.3f.pt" % ((epoch+1),self.loss)
+                checkpoint_path = os.path.join(self.checkpoint_dir_path, model_name)
+                torch.save(
+                {
+                    "epochs": epoch+1,
+                    "unet_state_dict": self.noise_predictor.state_dict(),
+                    "optimizer_state_dict": self.optimizer.state_dict(),
+                    "loss": self.loss,
+                },
+                checkpoint_path,
+                )
 
     @torch.no_grad()
     def sample(self):
@@ -119,7 +134,6 @@ class DDPMDiffusion:
                     x_t, x_t.new_full((self.num_gen_samples,), t, dtype=torch.long)
                 )
         sample1, sample2, sample3, sample4, sample5 = torch.chunk(x_t, 5, 0)
-        print("Sample Size:", sample1.size())
         if isinstance(self.dataset, ModelsDataset):
             sample1 = self.dataset.restore_original_tensor(sample1)
             sample2 = self.dataset.restore_original_tensor(sample2)
@@ -127,13 +141,14 @@ class DDPMDiffusion:
             sample4 = self.dataset.restore_original_tensor(sample4)
             sample5 = self.dataset.restore_original_tensor(sample5)
             print("Sample Size (unpadded): ", sample1.size())
-
+        
+        plt.imsave("sample1.png", sample1.cpu().squeeze().numpy())
+        plt.imsave("sample2.png", sample2.cpu().squeeze().numpy())
+        plt.imsave("sample3.png", sample3.cpu().squeeze().numpy())
+        plt.imsave("sample4.png", sample4.cpu().squeeze().numpy())
+        plt.imsave("sample5.png", sample5.cpu().squeeze().numpy())
         return sample1, sample2, sample3, sample4, sample5
-        # plt.imsave("sample1.png", sample1.cpu().squeeze().numpy())
-        # plt.imsave("sample2.png", sample2.cpu().squeeze().numpy())
-        # plt.imsave("sample3.png", sample3.cpu().squeeze().numpy())
-        # plt.imsave("sample4.png", sample4.cpu().squeeze().numpy())
-        # plt.imsave("sample5.png", sample5.cpu().squeeze().numpy())
+        
 
     @torch.no_grad()
     def evaluate(self):

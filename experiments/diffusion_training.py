@@ -11,6 +11,7 @@ from torchvision.transforms import ToTensor
 from frameworks.ddpm_template import DDPMDiffusion
 from models.mlp import MLP
 from utils.weight_transformations import nn_to_2d_tensor, tensor_to_nn
+import datetime
 
 
 class CONFIG:
@@ -38,6 +39,7 @@ class CONFIG:
         self.epochs = epochs
         self.learning_rate = learning_rate
         self.n_samples_gen = n_samples_gen
+        self.dataset_name = dataset_name
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         if dataset_name == "MNIST":
@@ -70,6 +72,12 @@ class CONFIG:
 
 
 def run(cfg: CONFIG):
+
+    checkpoint_directory = f"/scratch_net/bmicdl03/kgolan/Thesis/checkpoints"
+    experiments_checkpoints = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_DDPM_{cfg.dataset_name}_e_{cfg.epochs}_{cfg.n_diffusion_steps}_step"
+    target_dir = os.path.join(checkpoint_directory, experiments_checkpoints)
+    if not os.path.exists(target_dir):
+        os.mkdir(target_dir)
     diffusion_process = DDPMDiffusion(
         diffusion_steps=cfg.n_diffusion_steps,
         sample_channels=1,
@@ -83,6 +91,7 @@ def run(cfg: CONFIG):
         epochs=cfg.epochs,
         dataset=cfg.dataset,
         device=cfg.device,
+        checkpoint_dir_path=target_dir,
     )
     print(
         "Experiment config: %s"
@@ -92,24 +101,18 @@ def run(cfg: CONFIG):
             if type(v) in [str, int, float]
         }
     )
-    if not os.path.exists("../checkpoints"):
-        os.mkdir("../checkpoints")
-    model_path = "../checkpoints/ddpm.pt"
-    dataset = DatasetRetriever(cfg.dataset.original_dataset)
-    _, test_set = dataset()
-    # diffusion_process.train()
-    # torch.save(
-    #     {
-    #         "epochs": cfg.epochs,
-    #         "unet_state_dict": diffusion_process.noise_predictor.state_dict(),
-    #         "optimizer_state_dict": diffusion_process.optimizer.state_dict(),
-    #         "loss": diffusion_process.loss,
-    #     },
-    #     model_path,
-    # )
-    checkpoint = torch.load(model_path)
-    diffusion_process.noise_predictor.load_state_dict(checkpoint["unet_state_dict"])
-    diffusion_process.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+    model_path = f"{target_dir}/fully_trained_ddpm.pt"
+    diffusion_process.train()
+    torch.save(
+        {
+            "epochs": cfg.epochs,
+            "unet_state_dict": diffusion_process.noise_predictor.state_dict(),
+            "optimizer_state_dict": diffusion_process.optimizer.state_dict(),
+            "loss": diffusion_process.loss,
+        },
+        model_path,
+    )
     (
         sample_1,
         sample_2,
@@ -118,27 +121,16 @@ def run(cfg: CONFIG):
         sample_5,
     ) = diffusion_process.sample()
 
-    generated_model_1 = tensor_to_nn(sample_1, cfg.dataset.base_model)
-    generated_model_2 = tensor_to_nn(sample_2, cfg.dataset.base_model)
-    generated_model_3 = tensor_to_nn(sample_3, cfg.dataset.base_model)
-    generated_model_4 = tensor_to_nn(sample_4, cfg.dataset.base_model)
-    generated_model_5 = tensor_to_nn(sample_5, cfg.dataset.base_model)
+    # generated_model_1 = tensor_to_nn(sample_1, cfg.dataset.base_model)
 
-    test_process_1 = SupervisedLearning(generated_model_1, test_set=test_set)
-    test_process_1.test()
-    test_process_2 = SupervisedLearning(generated_model_2, test_set=test_set)
-    test_process_2.test()
-    test_process_3 = SupervisedLearning(generated_model_3, test_set=test_set)
-    test_process_3.test()
-    test_process_4 = SupervisedLearning(generated_model_4, test_set=test_set)
-    test_process_4.test()
-    test_process_5 = SupervisedLearning(generated_model_5, test_set=test_set)
-    test_process_5.test()
+    # _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
+    # test_process = SupervisedLearning(generated_model_1, test_set=test_set)
+    # test_process.test()
 
 
 def main():
-    dataset_name = "model_dataset_MNIST"
-    cfg = CONFIG(dataset_name, 100, 1, epochs=1, batch_size=2, sample_size=(368, 320))
+    dataset_name = "MNIST"
+    cfg = CONFIG(dataset_name, 100, 1, epochs=40, batch_size=8, sample_size=(24, 24))
     run(cfg)
 
 
