@@ -5,11 +5,10 @@ from torch.utils.data import Dataset
 
 
 class DatasetRetriever:
-    def __init__(self):
-        self.dataset_name = None
-
-    def __call__(self, dataset_name: str) -> "tuple[Dataset, Dataset]":
+    def __init__(self, dataset_name: str):
         self.dataset_name = dataset_name
+
+    def __call__(self) -> "tuple[Dataset, Dataset]":
         if self.dataset_name == "MNIST":
             im_transforms = transforms.ToTensor()
             self.train_set = MNIST(
