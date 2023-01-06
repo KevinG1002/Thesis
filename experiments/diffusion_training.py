@@ -84,20 +84,32 @@ def run(cfg: CONFIG):
         dataset=cfg.dataset,
         device=cfg.device,
     )
-    print("Experiment config: %s" % diffusion_process.__dict__)
+    print(
+        "Experiment config: %s"
+        % {
+            k: v
+            for k, v in diffusion_process.__dict__.items()
+            if type(v) in [str, int, float]
+        }
+    )
     if not os.path.exists("../checkpoints"):
         os.mkdir("../checkpoints")
     model_path = "../checkpoints/ddpm.pt"
-    diffusion_process.train()
-    torch.save(
-        {
-            "epochs": cfg.epochs,
-            "unet_state_dict": diffusion_process.noise_predictor.state_dict(),
-            "optimizer_state_dict": diffusion_process.optimizer.state_dict(),
-            "loss": diffusion_process.loss,
-        },
-        model_path,
-    )
+    dataset = DatasetRetriever(cfg.dataset.original_dataset)
+    _, test_set = dataset()
+    # diffusion_process.train()
+    # torch.save(
+    #     {
+    #         "epochs": cfg.epochs,
+    #         "unet_state_dict": diffusion_process.noise_predictor.state_dict(),
+    #         "optimizer_state_dict": diffusion_process.optimizer.state_dict(),
+    #         "loss": diffusion_process.loss,
+    #     },
+    #     model_path,
+    # )
+    checkpoint = torch.load(model_path)
+    diffusion_process.noise_predictor.load_state_dict(checkpoint["unet_state_dict"])
+    diffusion_process.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     (
         sample_1,
         sample_2,
@@ -107,10 +119,21 @@ def run(cfg: CONFIG):
     ) = diffusion_process.sample()
 
     generated_model_1 = tensor_to_nn(sample_1, cfg.dataset.base_model)
+    generated_model_2 = tensor_to_nn(sample_2, cfg.dataset.base_model)
+    generated_model_3 = tensor_to_nn(sample_3, cfg.dataset.base_model)
+    generated_model_4 = tensor_to_nn(sample_4, cfg.dataset.base_model)
+    generated_model_5 = tensor_to_nn(sample_5, cfg.dataset.base_model)
 
-    _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
-    test_process = SupervisedLearning(generated_model_1, test_set=test_set)
-    test_process.test()
+    test_process_1 = SupervisedLearning(generated_model_1, test_set=test_set)
+    test_process_1.test()
+    test_process_2 = SupervisedLearning(generated_model_2, test_set=test_set)
+    test_process_2.test()
+    test_process_3 = SupervisedLearning(generated_model_3, test_set=test_set)
+    test_process_3.test()
+    test_process_4 = SupervisedLearning(generated_model_4, test_set=test_set)
+    test_process_4.test()
+    test_process_5 = SupervisedLearning(generated_model_5, test_set=test_set)
+    test_process_5.test()
 
 
 def main():
