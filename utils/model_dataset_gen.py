@@ -104,17 +104,15 @@ def run(cfg: GENCONFIG):
                 for k, v in performance_dict.items()
             }
 
-            # dataset_dicts.append(entry)
             json.dump(dataset_dicts, file)
-        # dataset_dict[model_path] =
 
 
 def main():
     target_dataset = "MNIST"
-    # target_directory = (
-    #     f"/scratch_net/bmicdl03/kgolan/Thesis/datasets/model_dataset_{target_dataset}/"
-    # )
-    target_directory = f"../datasets/model_dataset_{target_dataset}/"
+    target_directory = (
+        f"/scratch_net/bmicdl03/kgolan/Thesis/datasets/model_dataset_{target_dataset}/"
+    )
+    # target_directory = f"../datasets/model_dataset_{target_dataset}/"
     if not os.path.exists(target_directory):
         os.mkdir(target_directory)
 
@@ -127,7 +125,7 @@ def main():
     cfg = GENCONFIG(
         target_dir=target_directory,
         target_dataset_transforms=transforms.ToTensor(),
-        target_dataset_path="../datasets/MNIST",
+        target_dataset_path="/scratch_net/bmicdl03/kgolan/Thesis/datasets/MNIST",
         learning_rate=learning_rate,
         epochs=epochs,
         batch_size=batch_size,

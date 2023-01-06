@@ -78,9 +78,9 @@ class SupervisedLearning(BasicLearning):
             for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
                 self.optim.zero_grad()
                 mbatch_x = mbatch_x.to(self.device)
-                mbatch_y = mbatch_y.to(self.device)
+                # mbatch_y = mbatch_y.to(self.device)
                 flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
-                one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y]
+                one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y].to(self.device)
                 pred_y = self.model(flattened_mbatch_x)
                 loss = self.criterion(
                     pred_y,
@@ -100,13 +100,13 @@ class SupervisedLearning(BasicLearning):
                 correct_preds = 0
                 for idx, (mbatch_x, mbatch_y) in enumerate(self.val_dataloader):
                     mbatch_x = mbatch_x.to(self.device)
-                    mbatch_y = mbatch_y.to(self.device)
+                    # mbatch_y = mbatch_y.to(self.device)
                     flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
-                    one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y]
+                    one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y].to(self.device)
                     pred_y = self.model(flattened_mbatch_x)
                     val_loss += self.criterion(pred_y, one_hot_mbatch_y)
                     correct_preds += torch.where(
-                        torch.argmax(pred_y, dim=1) == mbatch_y,
+                        torch.argmax(pred_y.cpu(), dim=1) == mbatch_y,
                         1,
                         0,
                     ).sum()
@@ -127,13 +127,12 @@ class SupervisedLearning(BasicLearning):
         correct_preds = 0
         for mbatch_x, mbatch_y in self.test_dataloader:
             mbatch_x = mbatch_x.to(self.device)
-            mbatch_y = mbatch_y.to(self.device)
             flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
-            one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y]
+            one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y].to(self.device)
             pred_y = self.model(flattened_mbatch_x)
             test_loss += self.criterion(pred_y, one_hot_mbatch_y)
             correct_preds += torch.where(
-                torch.argmax(pred_y, dim=1) == mbatch_y, 1, 0
+                torch.argmax(pred_y.cpu(), dim=1) == mbatch_y, 1, 0
             ).sum()
 
         print(
