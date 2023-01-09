@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from typing import Callable
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import CyclicLR, CosineAnnealingLR
@@ -26,6 +27,7 @@ class SnapshotEnsemble:
         epochs: int = 100,
         learning_rate: float = 1e-2,
         M_snapshots: int = 10,
+        criterion: Callable = CrossEntropyLoss,
     ):
         self.model = model
         self.train_set = train_set
@@ -39,7 +41,7 @@ class SnapshotEnsemble:
         self.lr_scheduler = CosineAnnealingLR(
             self.optimizer, T_max=int(epochs / M_snapshots), eta_min=0, verbose=True
         )
-        self.criterion = CrossEntropyLoss()
+        self.criterion = criterion
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.val_set = val_set if val_set else self._instantiate_val_set()
         self.M_snapshots = M_snapshots
@@ -47,7 +49,7 @@ class SnapshotEnsemble:
 
     def train_epoch(self, epoch_id: int):
         print("\nEpoch %d:\n" % epoch_id)
-        for idx, mbatch_x, mbatch_y in enumerate(self.train_dataloader):
+        for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
             self.optimizer.zero_grad()
             mbatch_x = mbatch_x.to(self.device)
             flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
@@ -98,6 +100,7 @@ class SnapshotEnsemble:
                     self.model.state_dict()
                 )
                 snapshot_counter += 1
+                self.test_model()  # Test model on testing set after resetting cyclical learning rate
 
     @torch.no_grad()
     def test_model(self):
