@@ -1,4 +1,6 @@
 import torch
+import copy
+import numpy as np
 import torch.nn as nn
 from typing import Callable
 from torch.utils.data import Dataset, DataLoader, random_split
@@ -45,7 +47,9 @@ class SnapshotEnsemble:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.val_set = val_set if val_set else self._instantiate_val_set()
         self.M_snapshots = M_snapshots
-        self.model_ensemble = [self.model for _ in range(self.M_snapshots)]
+        self.model_ensemble = []
+        self.snapshot_model_accs = []
+        self.snapshot_model_loss = []
 
     def train_epoch(self, epoch_id: int):
         print("\nEpoch %d:\n" % epoch_id)
@@ -80,9 +84,9 @@ class SnapshotEnsemble:
                     0,
                 ).sum()
             print(
-                "\nEpoch %d\tAvg Validation Loss: %.3f|| Validation Accuracy: %.3f"
+                "\nEpoch %d: Avg Validation Loss: %.3f|| Validation Accuracy: %.3f"
                 % (
-                    epoch_id + 1,
+                    epoch_id,
                     val_loss / len(self.val_dataloader),
                     float(correct_preds / len(self.val_set)),
                 )
@@ -96,11 +100,16 @@ class SnapshotEnsemble:
             self.train_epoch(epoch + 1)
             self.lr_scheduler.step()
             if (epoch + 1) % (self.epochs / self.M_snapshots) == 0:
-                self.model_ensemble[snapshot_counter].load_state_dict(
-                    self.model.state_dict()
-                )
+                self.model_ensemble.append(copy.deepcopy(self.model))
                 snapshot_counter += 1
-                self.test_model()  # Test model on testing set after resetting cyclical learning rate
+                (
+                    loss,
+                    acc,
+                ) = (
+                    self.test_model().values()
+                )  # Test model on testing set after resetting cyclical learning rate
+                self.snapshot_model_accs.append(acc)
+                self.snapshot_model_loss.append(loss.item())
 
     @torch.no_grad()
     def test_model(self):
@@ -132,14 +141,15 @@ class SnapshotEnsemble:
     def test_ensemble(self):
         ensemble_test_loss = 0.0
         ensemble_correct_preds = 0
+        # ensemble = [self.model.load_state_dict(d) for d in self.model_ensemble]
         for _, (mbatch_x, mbatch_y) in enumerate(self.test_dataloader):
             mbatch_x = mbatch_x.to(self.device)
             # mbatch_y = mbatch_y.to(self.device)
             flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
             one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y].to(self.device)
-            ensemble_pred_y = torch.mean(
-                torch.Tensor([m(flattened_mbatch_x) for m in self.model_ensemble]), 0
-            )
+            ensemble_pred_y = torch.stack(
+                [m(flattened_mbatch_x) for m in self.model_ensemble], 0
+            ).mean(0)
             ensemble_test_loss += self.criterion(ensemble_pred_y, one_hot_mbatch_y)
             ensemble_correct_preds += torch.where(
                 torch.argmax(ensemble_pred_y.cpu(), dim=1) == mbatch_y, 1, 0
@@ -150,6 +160,13 @@ class SnapshotEnsemble:
             % (
                 ensemble_test_loss / len(self.test_dataloader),
                 float(ensemble_correct_preds / len(self.test_set)),
+            )
+        )
+        print(
+            "Snapshot Models Average Loss: %.3f || Snapshot Models Average Accuracy: %.3f"
+            % (
+                float(sum(self.snapshot_model_loss) / len(self.snapshot_model_accs)),
+                float(sum(self.snapshot_model_accs) / len(self.snapshot_model_accs)),
             )
         )
         return {
