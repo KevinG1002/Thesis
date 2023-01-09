@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import sys
-
-sys.path.append("..")
 from frameworks.bayesian_layer import BayesianLayer
 from distributions.param_distribution import ParameterDistribution
 
@@ -14,6 +12,7 @@ class SimpleBNN(nn.Module):
         in_features: int,
         number_of_classes: int,
         prior_dist: ParameterDistribution,
+        bias: bool = True,
     ):
         super(SimpleBNN, self).__init__()
         self.in_features = in_features
@@ -24,17 +23,17 @@ class SimpleBNN(nn.Module):
         self.bl_1 = BayesianLayer(
             in_features=self.in_features,
             out_features=400,
-            bias=True,
+            bias=bias,
             prior=self.prior_dist,
         )
         self.bl_2 = BayesianLayer(
-            in_features=400, out_features=400, bias=True, prior=self.prior_dist
+            in_features=400, out_features=600, bias=bias, prior=self.prior_dist
         )
 
         self.bl_3 = BayesianLayer(
-            in_features=400,
+            in_features=600,
             out_features=number_of_classes,
-            bias=True,
+            bias=bias,
             prior=self.prior_dist,
         )
 
@@ -58,12 +57,12 @@ class SimpleBNN(nn.Module):
 
     def predict(self, x: torch.Tensor, num_mc_samples: int):
         probability_samples = torch.stack(
-            [self.forward(x) for _ in range(num_mc_samples)]
+            [self.forward(x)[0] for _ in range(num_mc_samples)]
         )
         estimated_probability = torch.mean(probability_samples, dim=0)
         assert estimated_probability.shape == (x.shape[0], self.number_of_classes)
-        assert all(
-            torch.allclose(torch.sum(estimated_probability, dim=1), torch.tensor(1.0))
+        assert torch.allclose(
+            torch.sum(estimated_probability, dim=1), torch.tensor(1.0)
         )
 
         return estimated_probability

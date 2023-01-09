@@ -6,6 +6,7 @@ from torchmetrics.classification import (
     MulticlassAUROC,
     MulticlassROC,
 )
+import numpy as np
 
 
 def per_class_accuracy(
@@ -21,7 +22,7 @@ def ece_score(
     ground_truth: torch.Tensor,
 ) -> float:
     multiclass_calib_metric = MulticlassCalibrationError(num_classes, n_bins, norm="l1")
-    return multiclass_calib_metric(prediction_probabilities, ground_truth)
+    return multiclass_calib_metric(prediction_probabilities, ground_truth).numpy()
 
 
 def accuracy(class_predictions: torch.Tensor, ground_truth: torch.Tensor) -> float:
@@ -36,7 +37,7 @@ def confusion_matrix(
     prediction_probabilities: torch.Tensor,
     ground_truth: torch,
     normalized: bool,
-):
+) -> np.ndarray:
     if normalized:
         confusion_m = ConfusionMatrix(
             task="multiclass", threshold=0.5, num_classes=num_classes, normalize="true"
@@ -46,16 +47,16 @@ def confusion_matrix(
             task="multiclass", threshold=0.5, num_classes=num_classes
         )
 
-    return confusion_m(prediction_probabilities, ground_truth)
+    return confusion_m(prediction_probabilities, ground_truth).numpy()
 
 
 def f1_score(
     num_classes: int,
     prediction_probabilities: torch.Tensor,
     ground_truth: torch.Tensor,
-) -> torch.Tensor:
+) -> np.ndarray:
     f1_metric = MulticlassF1Score(num_classes, average=None)
-    return f1_metric(prediction_probabilities, ground_truth)
+    return f1_metric(prediction_probabilities, ground_truth).numpy()
 
 
 def auroc(
@@ -63,11 +64,11 @@ def auroc(
     num_thresholds: int,
     prediction_probabilities: torch.Tensor,
     ground_truth: torch.Tensor,
-):
+) -> np.ndarray:
     auroc_metric = MulticlassAUROC(
         num_classes, average="macro", threshold=num_thresholds
     )
-    return auroc_metric(prediction_probabilities, ground_truth)
+    return auroc_metric(prediction_probabilities, ground_truth).numpy()
 
 
 def roc_score(
@@ -75,7 +76,7 @@ def roc_score(
     num_thresholds: int,
     prediction_probabilities: torch.Tensor,
     ground_truth: torch.Tensor,
-):
+) -> "tuple[np.ndarray]":
     roc_metric = MulticlassROC(num_classes, num_thresholds)
     fpr, tpr, thresholds = roc_metric(prediction_probabilities, ground_truth)
-    return fpr, tpr, thresholds
+    return fpr.numpy(), tpr.numpy(), thresholds.numpy()

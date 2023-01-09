@@ -105,14 +105,16 @@ class VITemplate(SupervisedLearning):
         self.test_dataloader = self._instantiate_test_dataloader()
         predicted_batch_probabilities = []
         with torch.no_grad():
-            for mbatch_x, mbatch_y in self.test_dataloader:
+            for mbatch_x, _ in self.test_dataloader:
                 mbatch_x = mbatch_x.to(self.device)
-                predict_probabilities = self.model.predict(mbatch_x, 15)
+                predict_probabilities = self.model.predict(
+                    torch.flatten(mbatch_x, 1), 15
+                )
                 predicted_batch_probabilities.append(predict_probabilities)
 
             predicted_batch_probabilities = torch.cat(predicted_batch_probabilities, 0)
             predicted_classes = torch.argmax(predicted_batch_probabilities, dim=1)
-            actual_classes = self.test_dataloader.tensors[1]
+            actual_classes = self.test_dataloader.dataset.test_labels
             accuracy = torch.where(
                 predicted_classes == actual_classes, 1, 0
             ).sum() / len(self.test_set)
