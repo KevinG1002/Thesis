@@ -4,11 +4,14 @@ from torch.nn import CrossEntropyLoss
 from torch.nn.modules.loss import _Loss
 import torch.nn.functional as F
 from torch.utils.data import Dataset, random_split, DataLoader
-from torch.optim import Optimizer, SGD
+from torch.optim import Optimizer, SGD, Adam
 from frameworks.basic_template import BasicLearning
+from utils.logging import Logger
 
 
 class SupervisedLearning(BasicLearning):
+    optim: Adam
+
     def __init__(
         self,
         model: nn.Module = None,
@@ -18,7 +21,7 @@ class SupervisedLearning(BasicLearning):
         num_classes: int = 10,
         epochs: int = 10,
         batch_size: int = 32,
-        optim: Optimizer = None,
+        learning_rate: float = 1e-3,
         criterion: _Loss = None,
         device: str = "cpu",
     ):
@@ -29,10 +32,13 @@ class SupervisedLearning(BasicLearning):
         self.epochs = epochs
         self.batch_size = batch_size
         self.val_set = val_set if val_set else self._instantiate_val_set()
-        self.optim = optim if optim else SGD(self.model.parameters(), lr=0.001)
+        self.optimizer = Adam(self.model.parameters(), lr=learning_rate)
         self.criterion = criterion if criterion else CrossEntropyLoss()
         self.num_classes = num_classes
         self.device = device
+
+        # Attribute set up within init function.
+        self.model = model.to(self.device)
 
     def _instantiate_val_set(self, val_split: float = 0.15):
         """
@@ -67,57 +73,71 @@ class SupervisedLearning(BasicLearning):
             dataset=self.val_set, batch_size=self.batch_size, shuffle=True
         )
 
-    def train(self):
+    def train(self) -> dict:
+        """
+        Train loop. Returns dictionary of training metrics including epoch validation loss and accuracy.
+        """
         self.train_dataloader = self._instantiate_train_dataloader()
         self.val_dataloader = self._instantiate_val_dataloader()
         self.model.train(True)
         # Beginning of training loop #
+        print("\n\n")
         for epoch in range(self.epochs):
-            print("\n\n")
-            loss = 0
-            for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
-                self.optim.zero_grad()
+            print("\nStart of training epoch %d." % (epoch + 1))
+            train_ep_metrics = self.train_epoch(epoch + 1)
+            print("\nTraining for epoch %d done." % (epoch + 1))
+            if epoch < 1:
+                train_metrics = {k: [v] for k, v in train_ep_metrics.items()}
+            else:
+                for k in train_ep_metrics.keys():
+                    train_metrics[k].append(train_ep_metrics[k])
+
+        return train_metrics
+
+    def train_epoch(self, epoch_idx: int):
+        loss = 0
+        for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
+            self.optimizer.zero_grad()
+            mbatch_x = mbatch_x.to(self.device)
+            flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
+            one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y].to(self.device)
+            pred_y = self.model(flattened_mbatch_x)
+            loss = self.criterion(
+                pred_y,
+                one_hot_mbatch_y,
+            )
+            if idx % 100 == 0:
+                print("Training loss: %.3f" % loss)
+            loss.backward()
+            self.optimizer.step()
+
+        # Beginning of validation loop #
+        with torch.no_grad():
+            val_loss = 0.0
+            correct_preds = 0
+            for idx, (mbatch_x, mbatch_y) in enumerate(self.val_dataloader):
                 mbatch_x = mbatch_x.to(self.device)
-                # mbatch_y = mbatch_y.to(self.device)
                 flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
                 one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y].to(self.device)
                 pred_y = self.model(flattened_mbatch_x)
-                loss = self.criterion(
-                    pred_y,
-                    one_hot_mbatch_y,
-                )
-                if idx % 100 == 0:
-                    print("Training loss: %.3f" % loss)
-                loss.backward()
-                self.optim.step()
+                val_loss += self.criterion(pred_y, one_hot_mbatch_y)
+                correct_preds += torch.where(
+                    torch.argmax(pred_y.cpu(), dim=1) == mbatch_y,
+                    1,
+                    0,
+                ).sum()
             print(
-                "\nTraining for epoch %d done. Evaluating on validation set."
-                % (epoch + 1)
-            )
-            # Beginning of validation loop #
-            with torch.no_grad():
-                val_loss = 0.0
-                correct_preds = 0
-                for idx, (mbatch_x, mbatch_y) in enumerate(self.val_dataloader):
-                    mbatch_x = mbatch_x.to(self.device)
-                    # mbatch_y = mbatch_y.to(self.device)
-                    flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
-                    one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y].to(self.device)
-                    pred_y = self.model(flattened_mbatch_x)
-                    val_loss += self.criterion(pred_y, one_hot_mbatch_y)
-                    correct_preds += torch.where(
-                        torch.argmax(pred_y.cpu(), dim=1) == mbatch_y,
-                        1,
-                        0,
-                    ).sum()
-                print(
-                    "\nEpoch %d\tAvg Validation Loss: %.3f|| Validation Accuracy: %.3f"
-                    % (
-                        epoch + 1,
-                        val_loss / len(self.val_dataloader),
-                        float(correct_preds / len(self.val_set)),
-                    )
+                "\nEpoch %d\tAvg Validation Loss: %.3f|| Validation Accuracy: %.3f"
+                % (
+                    epoch_idx,
+                    val_loss / len(self.val_dataloader),
+                    float(correct_preds / len(self.val_set)),
                 )
+            )
+            return {
+                "val_loss": val_loss.item() / len(self.val_dataloader),
+                "val_acc": float(correct_preds / len(self.val_set)),
+            }
 
     @torch.no_grad()
     def test(self):
@@ -143,6 +163,6 @@ class SupervisedLearning(BasicLearning):
             )
         )
         return {
-            "test_loss": test_loss / len(self.test_dataloader),
-            "accuracy": float(correct_preds / len(self.test_set)),
+            "test_loss": test_loss.item() / len(self.test_dataloader),
+            "test_acc": float(correct_preds / len(self.test_set)),
         }
