@@ -11,6 +11,7 @@ def argument_parser():
     parser.add_argument("--n_runs", default=50, type=int)
     parser.add_argument("--weight_decay", default=0.999, type=float)
     parser.add_argument("--M_snapshots", default=10, type=int)
+    parser.add_argument("--save_every", default=None, type=int)
     params = parser.parse_args()
 
     return params
