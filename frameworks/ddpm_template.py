@@ -129,18 +129,19 @@ class DDPMDiffusion:
                     self.optimizer.state_dict(),
                     self.loss,
                 )
-        checkpoint_name = "ddpm_fully_trained_e_%d_loss_%.3f.pt" % (
-            self.epochs,
-            self.loss,
-        )
-        checkpoint_path = os.path.join(self.checkpoint_dir_path, checkpoint_name)
-        checkpoint(
-            checkpoint_path,
-            self.epochs,
-            self.noise_predictor.state_dict(),
-            self.optimizer.state_dict(),
-            self.loss,
-        )
+        if self.checkpoint_every:
+            checkpoint_name = "ddpm_fully_trained_e_%d_loss_%.3f.pt" % (
+                self.epochs,
+                self.loss,
+            )
+            checkpoint_path = os.path.join(self.checkpoint_dir_path, checkpoint_name)
+            checkpoint(
+                checkpoint_path,
+                self.epochs,
+                self.noise_predictor.state_dict(),
+                self.optimizer.state_dict(),
+                self.loss,
+            )
         return train_metrics
 
     @torch.no_grad()
