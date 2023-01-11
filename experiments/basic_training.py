@@ -1,89 +1,89 @@
-import sys
 import torch
-import copy
-import os
+import datetime
 from torchvision.datasets import MNIST, CIFAR10
 from torchvision import transforms
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 from torch.nn.modules.loss import _Loss
-from torch.optim import Adam
-
-sys.path.append("..")
+import os
 from models.mlp import MLP
 from frameworks.sgd_template import SupervisedLearning
 from utils.params import argument_parser
+from utils.logging import Logger
+from datasets.get_dataset import DatasetRetriever
 
 torch.manual_seed(16)
+
+EXPERIMENTAL_RESULTS_PATH = "experimental_results"
 
 
 class CONFIG:
     def __init__(
         self,
         model: nn.Module,
-        dataset_dir: str = "../datasets/MNIST",
+        dataset_name: str,
         num_classes: int = 10,
         epochs: int = 50,
         batch_size: int = 32,
         learning_rate: float = 1e-3,
         weight_decay: float = 0.999,
-        optimizer: torch.optim.Optimizer = None,
         loss_function: _Loss = None,
-        im_transforms: transforms = None,
+        log_training: bool = False,
+        checkpoint_every: int = None,
     ):
         self.model = model
-        self.dataset_dir = dataset_dir
+        self.dataset_name = dataset_name
         self.num_classes = num_classes
         self.epochs = epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.optimizer = (
-            optimizer
-            if optimizer
-            else Adam(
-                self.model.parameters(),
-                lr=self.learning_rate,
-                weight_decay=self.weight_decay,
-            )
-        )
-        self.loss_function = loss_function if loss_function else CrossEntropyLoss()
+        self.log_training = log_training
 
-        self.im_transforms = im_transforms if im_transforms else transforms.ToTensor()
-        if os.path.basename(self.dataset_dir) == "MNIST":
-            self.train_set = MNIST(
-                os.path.join(self.dataset_dir),
-                train=True,
-                transform=self.im_transforms,
-                download=True,
-            )
-            self.test_set = MNIST(
-                self.dataset_dir,
-                train=False,
-                transform=self.im_transforms,
-                download=True,
-            )
-        elif os.path.basename(self.dataset_dir) == "CIFAR10":
-            self.train_set = CIFAR10(
-                self.dataset_dir,
-                train=True,
-                transform=self.im_transforms,
-                download=True,
-            )
-            self.test_set = CIFAR10(
-                self.dataset_dir,
-                train=False,
-                transform=self.im_transforms,
-                download=True,
-            )
-        else:
-            raise NotImplementedError
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.loss_function = loss_function if loss_function else CrossEntropyLoss()
+        dataset = DatasetRetriever(self.dataset_name)
+        self.train_set, self.test_set = dataset()
+
+        self.model_name = self.model.name
+        self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_SGD_{self.model_name}_{self.dataset_name}_e_{self.epochs}_{self.batch_size}_b_{self.learning_rate}_lr"
+        self.experiment_config = {
+            k: v
+            for k, v in self.__dict__.items()
+            if type(v) in [str, int, float, bool, tuple, list]
+        }
+        print("\nExperiment Config:\n%s" % self.experiment_config)
+        # Checkpointing attributes; if log_training set to false, path stay at None and checkpoint every does't change.
+        self.checkpoint_path = None
+        self.checkpoint_every = checkpoint_every
+        if self.log_training:
+            if os.path.isdir(EXPERIMENTAL_RESULTS_PATH):
+                self.experiment_dir = os.path.join(
+                    EXPERIMENTAL_RESULTS_PATH, self.experiment_name
+                )
+                if not os.path.exists(self.experiment_dir):
+                    os.mkdir(self.experiment_dir)
+
+                self.logger = Logger(
+                    self.experiment_name, self.experiment_dir, self.experiment_config
+                )
+            else:
+                os.mkdir(EXPERIMENTAL_RESULTS_PATH)
+                self.experiment_dir = os.path.join(
+                    EXPERIMENTAL_RESULTS_PATH, self.experiment_name
+                )
+                if not os.path.exists(self.experiment_dir):
+                    os.mkdir(self.experiment_dir)
+
+                self.logger = Logger(
+                    self.experiment_name, self.experiment_dir, self.experiment_config
+                )
+            self.checkpoint_path = (
+                self.logger.checkpoint_path
+            )  # automatically generated with logger object.
 
 
 def run_basic_training(cfg: CONFIG):
-    print("Supervised Learning method model id:", id(cfg.model))
-    print("Supervised Learning method optimizer id:", id(cfg.optimizer))
     supervised_learning_experiment = SupervisedLearning(
         model=cfg.model.to(cfg.device),
         train_set=cfg.train_set,
@@ -92,35 +92,32 @@ def run_basic_training(cfg: CONFIG):
         num_classes=cfg.num_classes,
         epochs=cfg.epochs,
         batch_size=cfg.batch_size,
-        optim=cfg.optimizer,
+        learning_rate=cfg.learning_rate,
         criterion=cfg.loss_function,
         device=cfg.device,
+        checkpoint_every=cfg.checkpoint_every,
+        checkpoint_dir=cfg.checkpoint_path,
     )
-
-    supervised_learning_experiment.train()
-    performance_dict = supervised_learning_experiment.test()
-    return supervised_learning_experiment.model, performance_dict
+    train_metrics = supervised_learning_experiment.train()
+    test_metrics = supervised_learning_experiment.test()
+    if cfg.log_training:
+        cfg.logger.save_results(train_metrics)
+        cfg.logger.save_results(test_metrics)
 
 
 def main():
     model = MLP()
-    print(model)
-    loss_func = CrossEntropyLoss()
     params = argument_parser()
-    optimizer = Adam(
-        model.parameters(), params.learning_rate, weight_decay=params.weight_decay
-    )
     cfg = CONFIG(
         model,
-        params.dataset,
+        "MNIST",
         10,
         params.num_epochs,
         params.batch_size,
         params.learning_rate,
         params.weight_decay,
-        optimizer,
-        loss_func,
-        transforms.ToTensor(),
+        log_training=True,
+        checkpoint_every=params.save_every,
     )
     run_basic_training(cfg)
 

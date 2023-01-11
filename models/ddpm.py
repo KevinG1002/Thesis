@@ -27,6 +27,8 @@ class DDPM:
         )  # recall \sigma_\theta (x_T, t) is fixed in DDPM and learned in improved DDPM
         self.device = device
 
+        self.name = self.__class__.__name__
+
     def q_xt_given_x0(self, x0: torch.Tensor, t: torch.Tensor):
         """
         This method defines the parameters of q(x_t | x_0) and is expressed

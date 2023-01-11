@@ -1,17 +1,16 @@
 import torch
 import os
+import datetime
 import torch.nn as nn
 from torch.utils.data import Dataset
 from torchvision.datasets import MNIST, CIFAR10
-from frameworks.sgd_template import SupervisedLearning
-from datasets.model_dataset import ModelsDataset
 from datasets.get_dataset import DatasetRetriever
-import torchvision.transforms as transforms
-from torchvision.transforms import ToTensor
 from frameworks.ddpm_template import DDPMDiffusion
 from models.mlp import MLP
 from utils.weight_transformations import nn_to_2d_tensor, tensor_to_nn
-import datetime
+from utils.logging import Logger
+
+EXPERIMENTAL_RESULTS_PATH = "experimental_results"
 
 
 class CONFIG:
@@ -28,6 +27,8 @@ class CONFIG:
         epochs: int = 50,
         learning_rate: float = 1e-4,
         n_samples_gen: int = 5,
+        log_training: bool = False,
+        checkpoint_every: int = None,
     ):
         self.n_diffusion_steps = n_diffusion_steps
         self.num_channels = num_channels
@@ -42,42 +43,49 @@ class CONFIG:
         self.dataset_name = dataset_name
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        if dataset_name == "MNIST":
-            self.transforms = transforms.Compose(
-                [transforms.ToTensor(), transforms.Resize(self.sample_size)]
-            )
-            self.dataset = MNIST(
-                "../datasets/",
-                train=True,
-                transform=self.transforms,
-                download=True,
-            )
-        elif dataset_name == "CIFAR10":
-            self.transforms = transforms.Compose(
-                [transforms.ToTensor(), transforms.Resize(self.sample_size)]
-            )
-            self.dataset = CIFAR10(
-                "../datasets/",
-                train=True,
-                transform=self.transforms,
-                download=True,
-            )
-        elif dataset_name == "model_dataset_MNIST":
-            self.dataset = ModelsDataset(
-                f"../datasets/{dataset_name}",
-                f"../datasets/{dataset_name}/model_dataset.json",
-                MLP(),
-                nn_to_2d_tensor,
-            )
+        dataset = DatasetRetriever(
+            self.dataset_name, resize_option=True, resize_dim=self.sample_size
+        )
+        self.dataset, _ = dataset()
+        self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_DDPM_{self.dataset_name}_e_{self.epochs}_{self.n_diffusion_steps}_steps"
+        self.log_training = log_training
+        # Checkpointing attributes; if log_training is False, path stay at None and checkpoint every does't change.
+        self.checkpoint_path = None
+        self.checkpoint_every = checkpoint_every
+        self.experiment_config = {
+            k: v
+            for k, v in self.__dict__.items()
+            if type(v) in [str, int, float, bool, tuple, list]
+        }
+        print("\nExperiment Config:\n%s" % self.experiment_config)
+        if self.log_training:
+            if os.path.isdir(EXPERIMENTAL_RESULTS_PATH):
+                self.experiment_dir = os.path.join(
+                    EXPERIMENTAL_RESULTS_PATH, self.experiment_name
+                )
+                if not os.path.exists(self.experiment_dir):
+                    os.mkdir(self.experiment_dir)
+
+                self.logger = Logger(
+                    self.experiment_name, self.experiment_dir, self.experiment_config
+                )
+            else:
+                os.mkdir(EXPERIMENTAL_RESULTS_PATH)
+                self.experiment_dir = os.path.join(
+                    EXPERIMENTAL_RESULTS_PATH, self.experiment_name
+                )
+                if not os.path.exists(self.experiment_dir):
+                    os.mkdir(self.experiment_dir)
+
+                self.logger = Logger(
+                    self.experiment_name, self.experiment_dir, self.experiment_config
+                )
+            self.checkpoint_path = (
+                self.logger.checkpoint_path
+            )  # automatically generated with logger object.
 
 
 def run(cfg: CONFIG):
-
-    checkpoint_directory = f"/scratch_net/bmicdl03/kgolan/Thesis/checkpoints"
-    experiments_checkpoints = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_DDPM_{cfg.dataset_name}_e_{cfg.epochs}_{cfg.n_diffusion_steps}_step"
-    target_dir = os.path.join(checkpoint_directory, experiments_checkpoints)
-    if not os.path.exists(target_dir):
-        os.mkdir(target_dir)
     diffusion_process = DDPMDiffusion(
         diffusion_steps=cfg.n_diffusion_steps,
         sample_channels=1,
@@ -91,28 +99,13 @@ def run(cfg: CONFIG):
         epochs=cfg.epochs,
         dataset=cfg.dataset,
         device=cfg.device,
-        checkpoint_dir_path=target_dir,
-    )
-    print(
-        "Experiment config: %s"
-        % {
-            k: v
-            for k, v in diffusion_process.__dict__.items()
-            if type(v) in [str, int, float]
-        }
+        checkpoint_every=cfg.checkpoint_every,
+        checkpoint_dir_path=cfg.checkpoint_path,
     )
 
-    model_path = f"{target_dir}/fully_trained_ddpm.pt"
-    diffusion_process.train()
-    torch.save(
-        {
-            "epochs": cfg.epochs,
-            "unet_state_dict": diffusion_process.noise_predictor.state_dict(),
-            "optimizer_state_dict": diffusion_process.optimizer.state_dict(),
-            "loss": diffusion_process.loss,
-        },
-        model_path,
-    )
+    train_metrics = diffusion_process.train()
+    if cfg.log_training:
+        cfg.logger.save_results(train_metrics)
     (
         sample_1,
         sample_2,
@@ -130,7 +123,16 @@ def run(cfg: CONFIG):
 
 def main():
     dataset_name = "MNIST"
-    cfg = CONFIG(dataset_name, 100, 1, epochs=40, batch_size=8, sample_size=(24, 24))
+    cfg = CONFIG(
+        dataset_name,
+        10,
+        1,
+        epochs=1,
+        batch_size=32,
+        sample_size=(24, 24),
+        log_training=True,
+        checkpoint_every=1,
+    )
     run(cfg)
 
 

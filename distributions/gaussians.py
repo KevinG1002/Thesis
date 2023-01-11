@@ -5,21 +5,22 @@ from torch.distributions.independent import Independent
 from torch.distributions.mixture_same_family import MixtureSameFamily
 from .param_distribution import ParameterDistribution
 
-
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 class UnivariateGaussian(ParameterDistribution):
     def __init__(self, mu: float, rho: float):
         super(UnivariateGaussian, self).__init__()
         self.mu = mu
         self.rho = rho
+        self.name = self._get_name()
 
     @property
     def sigma(self):
-        return torch.log(1 + torch.exp(torch.Tensor([self.rho])))
+        return torch.log(1 + torch.exp(torch.Tensor([self.rho]))).to(DEVICE)
 
     def log_likelihood(self, values) -> torch.Tensor:
         NLL = (
-            (1 / 2) * torch.log(torch.Tensor([2 * torch.pi]))
-            + torch.log(torch.Tensor([self.sigma]))
+            (1 / 2) * torch.log(torch.Tensor([2 * torch.pi]).to(DEVICE))
+            + torch.log(torch.Tensor([self.sigma]).to(DEVICE))
             + ((values - self.mu) ** 2 / (self.sigma**2))
         )
         return -NLL
@@ -36,7 +37,7 @@ class MultivariateDiagonalGaussian(ParameterDistribution):
 
     @property
     def sigma(self):
-        return torch.log(1 + torch.exp(self.rho))
+        return torch.log(1 + torch.exp(self.rho)).to(DEVICE)
 
     def log_likelihood(self, values) -> torch.Tensor:
         """
@@ -46,7 +47,7 @@ class MultivariateDiagonalGaussian(ParameterDistribution):
         is computed in an element wise fashion
         """
         NLL = (
-            (1 / 2) * torch.log(torch.Tensor([2 * torch.pi]))
+            (1 / 2) * torch.log(torch.Tensor([2 * torch.pi]).to(DEVICE))
             + torch.log(self.sigma)
             + ((values - self.mu) ** 2 / (2 * self.sigma**2))
         )
