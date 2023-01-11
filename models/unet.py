@@ -412,6 +412,9 @@ class DDPMUNet(nn.Module):
             in_channels, sample_channels, kernel_size=(3, 3), padding=(1, 1)
         )
 
+        # for metadata
+        self.name = self._get_name()
+
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         t = self.time_embedding(t)
         x = self.sample_projection(x)

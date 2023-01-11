@@ -18,6 +18,7 @@ class SimpleBNN(nn.Module):
         self.in_features = in_features
         self.number_of_classes = number_of_classes
         self.prior_dist = prior_dist
+        self.name = self._get_name()
 
         ## Architecture Structure ##
         self.bl_1 = BayesianLayer(
