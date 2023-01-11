@@ -29,6 +29,7 @@ class CONFIG:
         weight_decay: float = 0.999,
         loss_function: _Loss = None,
         log_training: bool = False,
+        checkpoint_every: int = None,
     ):
         self.model = model
         self.dataset_name = dataset_name
@@ -44,32 +45,42 @@ class CONFIG:
         dataset = DatasetRetriever(self.dataset_name)
         self.train_set, self.test_set = dataset()
 
-        self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_SGD_{self.dataset_name}_e_{self.epochs}_{self.batch_size}_b_{self.learning_rate}_lr"
+        self.model_name = self.model.name
+        self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_SGD_{self.model_name}_{self.dataset_name}_e_{self.epochs}_{self.batch_size}_b_{self.learning_rate}_lr"
         self.experiment_config = {
-            k: v for k, v in self.__dict__.items() if type(v) in [str, int, float, bool]
+            k: v
+            for k, v in self.__dict__.items()
+            if type(v) in [str, int, float, bool, tuple, list]
         }
+        print("\nExperiment Config:\n%s" % self.experiment_config)
+        # Checkpointing attributes; if log_training set to false, path stay at None and checkpoint every does't change.
+        self.checkpoint_path = None
+        self.checkpoint_every = checkpoint_every
         if self.log_training:
             if os.path.isdir(EXPERIMENTAL_RESULTS_PATH):
-                experiment_dir = os.path.join(
+                self.experiment_dir = os.path.join(
                     EXPERIMENTAL_RESULTS_PATH, self.experiment_name
                 )
-                if not os.path.exists(experiment_dir):
-                    os.mkdir(experiment_dir)
+                if not os.path.exists(self.experiment_dir):
+                    os.mkdir(self.experiment_dir)
 
                 self.logger = Logger(
-                    self.experiment_name, experiment_dir, self.experiment_config
+                    self.experiment_name, self.experiment_dir, self.experiment_config
                 )
             else:
                 os.mkdir(EXPERIMENTAL_RESULTS_PATH)
-                experiment_dir = os.path.join(
+                self.experiment_dir = os.path.join(
                     EXPERIMENTAL_RESULTS_PATH, self.experiment_name
                 )
-                if not os.path.exists(experiment_dir):
-                    os.mkdir(experiment_dir)
+                if not os.path.exists(self.experiment_dir):
+                    os.mkdir(self.experiment_dir)
 
                 self.logger = Logger(
-                    self.experiment_name, experiment_dir, self.experiment_config
+                    self.experiment_name, self.experiment_dir, self.experiment_config
                 )
+            self.checkpoint_path = (
+                self.logger.checkpoint_path
+            )  # automatically generated with logger object.
 
 
 def run_basic_training(cfg: CONFIG):
@@ -84,6 +95,8 @@ def run_basic_training(cfg: CONFIG):
         learning_rate=cfg.learning_rate,
         criterion=cfg.loss_function,
         device=cfg.device,
+        checkpoint_every=cfg.checkpoint_every,
+        checkpoint_dir=cfg.checkpoint_path,
     )
     train_metrics = supervised_learning_experiment.train()
     test_metrics = supervised_learning_experiment.test()
@@ -103,7 +116,8 @@ def main():
         params.batch_size,
         params.learning_rate,
         params.weight_decay,
-        log_training=False,
+        log_training=True,
+        checkpoint_every=params.save_every,
     )
     run_basic_training(cfg)
 
