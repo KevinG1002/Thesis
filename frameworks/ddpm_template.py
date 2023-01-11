@@ -5,6 +5,7 @@ from torch.optim import Adam
 import matplotlib.pyplot as plt
 from datasets.model_dataset import ModelsDataset
 from models.ddpm import DDPM
+from utils.logging import checkpoint
 from models.unet import DDPMUNet
 
 
@@ -33,6 +34,7 @@ class DDPMDiffusion:
         epochs: int,
         dataset: Dataset,
         device: str,
+        checkpoint_every: int,
         checkpoint_dir_path: str,
     ) -> None:
         """
@@ -72,20 +74,30 @@ class DDPMDiffusion:
         self.epochs = epochs
         self.dataset = dataset
         self.device = device
-        self.checkpoint_dir_path = checkpoint_dir_path
-
         self.noise_predictor = DDPMUNet(
             sample_channels, num_channels, channel_multipliers, is_attention
         ).to(self.device)
         self.ddpm = DDPM(self.noise_predictor, self.diffusion_steps, self.device)
-
         self.optimizer = Adam(self.noise_predictor.parameters(), self.learning_rate)
+
+        # Checkpointing attributes
+        self.checkpoint_every = checkpoint_every
+        self.checkpoint_dir_path = checkpoint_dir_path
+        assert (checkpoint_dir_path and checkpoint_every) or not (
+            checkpoint_dir_path and checkpoint_every
+        ), "Missing either one of checkpoint dir (str path) or checkpoint frequency (int)"
+        if checkpoint_every:
+            assert (
+                checkpoint_every <= self.epochs
+            ), "Checkpoint frequency greater than number of epochs. Current program won't checkpoint models."
+        # Attribute set up within init function.
 
     def train(self):
         """
         Train UNet in conjuction with DDPM.
         """
         print("Training DDPM on device:", self.device)
+        train_metrics = {"train_diff_loss": []}
         self.dataloader = DataLoader(
             self.dataset, self.batch_size, shuffle=True, pin_memory=True
         )
@@ -101,18 +113,35 @@ class DDPMDiffusion:
                 self.loss.backward()
                 self.optimizer.step()
             self.sample()
-            if epoch % 4 == 0:
-                model_name = "ddpm_checkpoint_e_%d_loss_%.3f.pt" % ((epoch+1),self.loss)
-                checkpoint_path = os.path.join(self.checkpoint_dir_path, model_name)
-                torch.save(
-                {
-                    "epochs": epoch+1,
-                    "unet_state_dict": self.noise_predictor.state_dict(),
-                    "optimizer_state_dict": self.optimizer.state_dict(),
-                    "loss": self.loss,
-                },
-                checkpoint_path,
+            train_metrics["train_diff_loss"].append(self.loss)
+            if self.checkpoint_every and (epoch % self.checkpoint_every == 0):
+                checkpoint_name = "ddpm_checkpoint_e_%d_loss_%.3f.pt" % (
+                    (epoch + 1),
+                    self.loss,
                 )
+                checkpoint_path = os.path.join(
+                    self.checkpoint_dir_path, checkpoint_name
+                )
+                checkpoint(
+                    checkpoint_path,
+                    epoch + 1,
+                    self.noise_predictor.state_dict(),
+                    self.optimizer.state_dict(),
+                    self.loss,
+                )
+        checkpoint_name = "ddpm_fully_trained_e_%d_loss_%.3f.pt" % (
+            self.epochs,
+            self.loss,
+        )
+        checkpoint_path = os.path.join(self.checkpoint_dir_path, checkpoint_name)
+        checkpoint(
+            checkpoint_path,
+            self.epochs,
+            self.noise_predictor.state_dict(),
+            self.optimizer.state_dict(),
+            self.loss,
+        )
+        return train_metrics
 
     @torch.no_grad()
     def sample(self):
@@ -140,15 +169,13 @@ class DDPMDiffusion:
             sample3 = self.dataset.restore_original_tensor(sample3)
             sample4 = self.dataset.restore_original_tensor(sample4)
             sample5 = self.dataset.restore_original_tensor(sample5)
-            print("Sample Size (unpadded): ", sample1.size())
-        
-        plt.imsave("sample1.png", sample1.cpu().squeeze().numpy())
-        plt.imsave("sample2.png", sample2.cpu().squeeze().numpy())
-        plt.imsave("sample3.png", sample3.cpu().squeeze().numpy())
-        plt.imsave("sample4.png", sample4.cpu().squeeze().numpy())
-        plt.imsave("sample5.png", sample5.cpu().squeeze().numpy())
+        experiment_dir = os.path.dirname(self.checkpoint_dir_path)
+        plt.imsave(f"{experiment_dir}/sample1.png", sample1.cpu().squeeze().numpy())
+        plt.imsave(f"{experiment_dir}/sample2.png", sample2.cpu().squeeze().numpy())
+        plt.imsave(f"{experiment_dir}/sample3.png", sample3.cpu().squeeze().numpy())
+        plt.imsave(f"{experiment_dir}/sample4.png", sample4.cpu().squeeze().numpy())
+        plt.imsave(f"{experiment_dir}/sample5.png", sample5.cpu().squeeze().numpy())
         return sample1, sample2, sample3, sample4, sample5
-        
 
     @torch.no_grad()
     def evaluate(self):

@@ -1,4 +1,4 @@
-import torch
+import torch, os
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 from torch.nn.modules.loss import _Loss
@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, random_split, DataLoader
 from torch.optim import Optimizer, SGD, Adam
 from frameworks.basic_template import BasicLearning
-from utils.logging import Logger
+from utils.logging import checkpoint
 
 
 class SupervisedLearning(BasicLearning):
@@ -24,6 +24,8 @@ class SupervisedLearning(BasicLearning):
         learning_rate: float = 1e-3,
         criterion: _Loss = None,
         device: str = "cpu",
+        checkpoint_every: int = None,
+        checkpoint_dir: str = None,
     ):
         super().__init__()
         self.model = model
@@ -36,9 +38,16 @@ class SupervisedLearning(BasicLearning):
         self.criterion = criterion if criterion else CrossEntropyLoss()
         self.num_classes = num_classes
         self.device = device
+        self.checkpoint_every = checkpoint_every
+        self.checkpoint_dir = checkpoint_dir
 
-        # Attribute set up within init function.
-        self.model = model.to(self.device)
+        assert (checkpoint_dir and checkpoint_every) or not (
+            checkpoint_dir and checkpoint_every
+        ), "Missing either one of checkpoint dir (str path) or checkpoint frequency (int)"
+        if checkpoint_every:
+            assert (
+                checkpoint_every <= self.epochs
+            ), "Checkpoint frequency greater than number of epochs. Current program won't checkpoint models."
 
     def _instantiate_val_set(self, val_split: float = 0.15):
         """
@@ -91,11 +100,40 @@ class SupervisedLearning(BasicLearning):
             else:
                 for k in train_ep_metrics.keys():
                     train_metrics[k].append(train_ep_metrics[k])
-
+            if self.checkpoint_every and ((epoch + 1) % self.checkpoint_every == 0):
+                checkpoint_name = "%s_checkpoint_e_%d_loss_%.3f.pt" % (
+                    self.model.name,
+                    epoch + 1,
+                    train_ep_metrics["val_loss"],
+                )
+                model_checkpoint_path = os.path.join(
+                    self.checkpoint_dir, checkpoint_name
+                )
+                checkpoint(
+                    model_checkpoint_path,
+                    epoch + 1,
+                    self.model.state_dict(),
+                    self.optimizer.state_dict(),
+                    train_metrics["val_loss"],
+                )
+        if self.checkpoint_every:
+            checkpoint_name = "%s_fully_trained_e_%d_loss_%.3f.pt" % (
+                self.model.name,
+                self.epochs,
+                train_ep_metrics["val_loss"],
+            )
+            model_checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
+            checkpoint(
+                model_checkpoint_path,
+                epoch + 1,
+                self.model.state_dict(),
+                self.optimizer.state_dict(),
+                train_metrics["val_loss"],
+            )
         return train_metrics
 
     def train_epoch(self, epoch_idx: int):
-        loss = 0
+        train_loss = 0.0
         for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
             self.optimizer.zero_grad()
             mbatch_x = mbatch_x.to(self.device)
@@ -109,7 +147,9 @@ class SupervisedLearning(BasicLearning):
             if idx % 100 == 0:
                 print("Training loss: %.3f" % loss)
             loss.backward()
+            train_loss += loss
             self.optimizer.step()
+        avg_train_loss = train_loss.item() / len(self.train_dataloader)
 
         # Beginning of validation loop #
         with torch.no_grad():
@@ -127,14 +167,16 @@ class SupervisedLearning(BasicLearning):
                     0,
                 ).sum()
             print(
-                "\nEpoch %d\tAvg Validation Loss: %.3f|| Validation Accuracy: %.3f"
+                "\nEpoch %d\t Avg Train Loss: %.3f|| Avg Validation Loss: %.3f|| Validation Accuracy: %.3f"
                 % (
                     epoch_idx,
+                    avg_train_loss,
                     val_loss / len(self.val_dataloader),
                     float(correct_preds / len(self.val_set)),
                 )
             )
             return {
+                "train_loss": avg_train_loss,
                 "val_loss": val_loss.item() / len(self.val_dataloader),
                 "val_acc": float(correct_preds / len(self.val_set)),
             }
