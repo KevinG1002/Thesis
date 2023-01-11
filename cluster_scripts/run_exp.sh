@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --output=/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/%j.out
+#SBATCH --output=/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/logs/%j.out
 #SBATCH --gres=gpu:1
-#SBATCH --mem=8G
+#!SBATCH --mem=12G
 #! What e-mail address to use for notifications?
 #! Insert your mail address here for job notifications
 #! Remove the ! to uncomment
