@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, random_split, DataLoader
 from torch.optim import Optimizer, SGD, Adam
 from frameworks.basic_template import BasicLearning
-from utils.logging import checkpoint
+from utils.exp_logging import checkpoint
 
 
 class SupervisedLearning(BasicLearning):

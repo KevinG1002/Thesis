@@ -6,7 +6,7 @@ from torch.nn import CrossEntropyLoss
 from models.mlp import MLP
 from datasets.get_dataset import DatasetRetriever
 from utils.params import argument_parser
-from utils.logging import Logger
+from utils.exp_logging import Logger
 from frameworks.snapshot_ensembles import SnapshotEnsemble
 
 EXPERIMENTAL_RESULTS_PATH = "experimental_results"

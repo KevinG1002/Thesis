@@ -6,9 +6,10 @@ from torch.utils.data import Dataset
 from torchvision.datasets import MNIST, CIFAR10
 from datasets.get_dataset import DatasetRetriever
 from frameworks.ddpm_template import DDPMDiffusion
+from frameworks.sgd_template import SupervisedLearning
 from models.mlp import MLP
 from utils.weight_transformations import nn_to_2d_tensor, tensor_to_nn
-from utils.logging import Logger
+from utils.exp_logging import Logger
 
 EXPERIMENTAL_RESULTS_PATH = "experimental_results"
 
@@ -114,24 +115,49 @@ def run(cfg: CONFIG):
         sample_5,
     ) = diffusion_process.sample()
 
-    # generated_model_1 = tensor_to_nn(sample_1, cfg.dataset.base_model)
+    generated_model_1 = tensor_to_nn(sample_1, cfg.dataset.base_model)
+    _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
+    test_process = SupervisedLearning(generated_model_1, test_set=test_set)
+    print("\nTesting Generated Sample 1:\n")
+    test_process.test()
 
-    # _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
-    # test_process = SupervisedLearning(generated_model_1, test_set=test_set)
-    # test_process.test()
+    generated_model_2 = tensor_to_nn(sample_2, cfg.dataset.base_model)
+    _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
+    test_process_2 = SupervisedLearning(generated_model_2, test_set=test_set)
+    print("\nTesting Generated Sample 2:\n")
+    test_process_2.test()
+
+    generated_model_3 = tensor_to_nn(sample_3, cfg.dataset.base_model)
+    _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
+    test_process_3 = SupervisedLearning(generated_model_3, test_set=test_set)
+    print("\nTesting Generated Sample 3:\n")
+    test_process_3.test()
+
+    generated_model_4 = tensor_to_nn(sample_4, cfg.dataset.base_model)
+    _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
+    test_process_4 = SupervisedLearning(generated_model_4, test_set=test_set)
+    print("\nTesting Generated Sample 1:\n")
+    test_process_4.test()
+
+    generated_model_5 = tensor_to_nn(sample_5, cfg.dataset.base_model)
+    _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
+    test_process_5 = SupervisedLearning(generated_model_5, test_set=test_set)
+    print("\nTesting Generated Sample 1:\n")
+    test_process_5.test()
 
 
 def main():
-    dataset_name = "MNIST"
+    dataset_name = "model_dataset_MNIST"
     cfg = CONFIG(
         dataset_name,
-        10,
-        1,
-        epochs=1,
-        batch_size=32,
-        sample_size=(24, 24),
+        n_diffusion_steps = 150,
+        sample_channels = 1,
+        epochs=50,
+        learning_rate=1e-3,
+        batch_size=8,
+        sample_size=(None,None),
         log_training=True,
-        checkpoint_every=1,
+        checkpoint_every=4,
     )
     run(cfg)
 

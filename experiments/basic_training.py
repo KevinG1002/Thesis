@@ -9,7 +9,7 @@ import os
 from models.mlp import MLP
 from frameworks.sgd_template import SupervisedLearning
 from utils.params import argument_parser
-from utils.logging import Logger
+from utils.exp_logging import Logger
 from datasets.get_dataset import DatasetRetriever
 
 torch.manual_seed(16)
