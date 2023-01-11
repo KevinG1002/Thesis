@@ -11,6 +11,7 @@ class UnivariateGaussian(ParameterDistribution):
         super(UnivariateGaussian, self).__init__()
         self.mu = mu
         self.rho = rho
+        self.name = self._get_name()
 
     @property
     def sigma(self):
