@@ -15,9 +15,10 @@ class SimpleBNN(nn.Module):
         bias: bool = True,
     ):
         super(SimpleBNN, self).__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.in_features = in_features
         self.number_of_classes = number_of_classes
-        self.prior_dist = prior_dist
+        self.prior_dist = prior_dist.to(self.device)
         self.name = self._get_name()
 
         ## Architecture Structure ##
@@ -39,8 +40,8 @@ class SimpleBNN(nn.Module):
         )
 
     def forward(self, x):
-        tot_log_prior = torch.tensor(0.0)
-        tot_log_var_posterior = torch.tensor(0.0)
+        tot_log_prior = torch.tensor(0.0).to(self.device)
+        tot_log_var_posterior = torch.tensor(0.0).to(self.device)
 
         x, log_prior, log_var_posterior = self.bl_1(x)
         tot_log_prior += log_prior

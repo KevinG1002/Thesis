@@ -81,7 +81,7 @@ class CONFIG:
 
 def run_experiment(cfg: CONFIG):
     snapshot_process = SnapshotEnsemble(
-        cfg.base_model,
+        cfg.base_model.to(cfg.device),
         cfg.train_set,
         cfg.test_set,
         None,

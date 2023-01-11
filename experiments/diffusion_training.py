@@ -125,10 +125,10 @@ def main():
     dataset_name = "MNIST"
     cfg = CONFIG(
         dataset_name,
-        30,
+        10,
         1,
-        epochs=2,
-        batch_size=8,
+        epochs=1,
+        batch_size=32,
         sample_size=(24, 24),
         log_training=True,
         checkpoint_every=1,

@@ -31,9 +31,10 @@ class BayesianLayer(Module):
             - bias_prior (Type[ParameterDistribution]): prior distributon posed over the biases in the network.
         """
         super().__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.in_features = in_features
         self.out_features = out_features
-        self.prior = prior
+        self.prior = prior.to(self.device)
         self.bias = bias
 
         if bias:
@@ -49,13 +50,13 @@ class BayesianLayer(Module):
             self.bias_var_posterior = MultivariateDiagonalGaussian(
                 mu=Parameter(torch.Tensor(self.out_features).normal_(0, 0.1)),
                 rho=Parameter(torch.Tensor(self.out_features).normal_(0, 1)),
-            )
+            ).to(self.device)
             assert isinstance(self.bias_var_posterior, ParameterDistribution)
             assert any(True for _ in self.bias_var_posterior.parameters())
         else:
             self.bias_var_posterior = None
         self.weight_prior = (
-            prior if prior else UnivariateGaussian(torch.zeros(1), torch.ones(1))
+            prior if prior else UnivariateGaussian(torch.zeros(1), torch.ones(1)).to(self.device)
         )
         assert isinstance(self.weight_prior, ParameterDistribution)
         assert not any(
@@ -69,7 +70,7 @@ class BayesianLayer(Module):
             rho=Parameter(
                 torch.Tensor(self.out_features, self.in_features).normal_(0, 1)
             ),
-        )
+        ).to(self.device)
         assert isinstance(self.weights_var_posterior, ParameterDistribution)
 
     def forward(self, x: torch.Tensor):
@@ -81,7 +82,7 @@ class BayesianLayer(Module):
 
         epsilon = torch.distributions.Normal(0, 1).sample(
             (self.out_features, self.in_features)
-        )
+        ).to(self.device)
 
         weights = self.weights_var_posterior.mu + (
             self.weights_var_posterior.sigma * epsilon
@@ -92,7 +93,7 @@ class BayesianLayer(Module):
         ).sum()
 
         if self.bias:
-            eps = torch.distributions.Normal(0, 1).sample([self.out_features])
+            eps = torch.distributions.Normal(0, 1).sample([self.out_features]).to(self.device)
             bias = self.bias_var_posterior.mu + eps * (self.bias_var_posterior.sigma)
 
             log_prior += self.bias_prior.log_likelihood(bias).sum()

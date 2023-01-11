@@ -50,7 +50,8 @@ class VITemplate(SupervisedLearning):
         loss = 0.0
         for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
             mbatch_x = mbatch_x.to(self.device)
-            one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y].to(self.device)
+            mbatch_y = mbatch_y.to(self.device)
+            one_hot_mbatch_y = torch.eye(self.num_classes).to(self.device)[mbatch_y]
             self.optimizer.zero_grad()
             logits, log_prior, log_var_posterior = self.model(
                 torch.flatten(mbatch_x, 1)
@@ -82,7 +83,8 @@ class VITemplate(SupervisedLearning):
             correct_preds = 0
             for mbatch_x, mbatch_y in self.val_dataloader:
                 mbatch_x = mbatch_x.to(self.device)
-                one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y].to(self.device)
+                mbatch_y = mbatch_y.to(self.device)
+                one_hot_mbatch_y = torch.eye(self.num_classes).to(self.device)[mbatch_y]
                 logits, log_prior, log_var_posterior = self.model(
                     torch.flatten(mbatch_x, 1)
                 )
@@ -111,6 +113,7 @@ class VITemplate(SupervisedLearning):
         with torch.no_grad():
             for mbatch_x, _ in self.test_dataloader:
                 mbatch_x = mbatch_x.to(self.device)
+                # mbatch_y = mbatch_y.to(self.device)
                 predict_probabilities = self.model.predict(
                     torch.flatten(mbatch_x, 1), 15
                 )
@@ -118,7 +121,7 @@ class VITemplate(SupervisedLearning):
 
             predicted_batch_probabilities = torch.cat(predicted_batch_probabilities, 0)
             predicted_classes = torch.argmax(predicted_batch_probabilities, dim=1)
-            actual_classes = self.test_dataloader.dataset.test_labels
+            actual_classes = self.test_dataloader.dataset.test_labels.to(self.device)
             accuracy = torch.where(
                 predicted_classes == actual_classes, 1, 0
             ).sum() / len(self.test_set)

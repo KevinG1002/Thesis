@@ -90,7 +90,7 @@ class CONFIG:
 def run_bnn_training(cfg: CONFIG):
 
     vi_experiment = VITemplate(
-        model=cfg.model,
+        model=cfg.model.to(cfg.device),
         train_set=cfg.train_set,
         test_set=cfg.test_set,
         val_set=None,
