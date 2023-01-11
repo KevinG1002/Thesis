@@ -1,5 +1,6 @@
 import json
 import os
+import torch
 
 
 class Logger:
@@ -10,7 +11,7 @@ class Logger:
         self.experiment_dir = experiment_dir
         self.experiment_config = experiment_config
         self._save_config()
-        self._create_checkpoint_dir
+        self._create_checkpoint_dir()
 
     def _save_config(self):
         with open(self.experiment_dir + "/experiment_config.json", "w") as f:
@@ -18,9 +19,10 @@ class Logger:
             return
 
     def _create_checkpoint_dir(self):
-        if os.path.exists(self.experiment_dir + "/checkpoints"):
+        self.checkpoint_path = self.experiment_dir + "/checkpoints"
+        if os.path.exists(self.checkpoint_path):
             return
-        os.mkdir(self.experiment_dir + "/checkpoints")
+        os.mkdir(self.checkpoint_path)
         return
 
     def save_results(self, dict_results: dict):
@@ -37,3 +39,22 @@ class Logger:
         with open(self.experiment_dir + "/experiment_results.json", "w") as f:
             json.dump(dict_results, f)
             return
+
+
+def checkpoint(
+    path: str,
+    epoch: int,
+    model_state_dict: dict,
+    optimizer_state_dict: dict,
+    loss: torch.Tensor,
+):
+    torch.save(
+        {
+            "epochs": epoch,
+            "unet_state_dict": model_state_dict,
+            "optimizer_state_dict": optimizer_state_dict,
+            "loss": loss,
+        },
+        path,
+    )
+    return
