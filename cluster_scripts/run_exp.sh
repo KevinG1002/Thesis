@@ -20,4 +20,4 @@ cd /scratch_net/bmicdl03/kgolan/Thesis/experiments/
 echo "Virtual Environment activated"
 python -u  /scratch_net/bmicdl03/kgolan/Thesis/experiments/snapshot_training.py -e 10 --M_snapshots 5 --save_every 2 -lr 0.01
 echo "Deactivating Virtual Environment"
-deactivate
+conda deactivate
