@@ -161,10 +161,10 @@ class DDPMDiffusion:
         )  # Sample from Standard Gaussian (distribution at end of diffusion process) in the dimensions of original sample and sample according to the number of samples to generate.
         x_t = x_T
         for t in range(self.diffusion_steps):
-            if t > 1:
-                x_t = self.ddpm.sample_p_t_reverse_process(
-                    x_t, x_t.new_full((self.num_gen_samples,), t, dtype=torch.long)
-                )
+            t_ = self.diffusion_steps - t - 1
+            x_t = self.ddpm.sample_p_t_reverse_process(
+                x_t, x_t.new_full((self.num_gen_samples,), t_, dtype=torch.long)
+            )
         sample1, sample2, sample3, sample4, sample5 = torch.chunk(x_t, 5, 0)
         if isinstance(self.dataset, ModelsDataset):
             sample1 = self.dataset.restore_original_tensor(sample1)
