@@ -18,6 +18,7 @@ cd /scratch_net/bmicdl03/kgolan/Thesis/
 pip install -e .
 cd /scratch_net/bmicdl03/kgolan/Thesis/experiments/
 echo "Virtual Environment activated"
-python -u  /scratch_net/bmicdl03/kgolan/Thesis/experiments/snapshot_training.py -e 10 --M_snapshots 5 --save_every 2 -lr 0.01
+python -u  /scratch_net/bmicdl03/kgolan/Thesis/experiments/diffusion_training.py 
+# python -u /scratch_net/bmicdl03/kgolan/Thesis/utils/model_dataset_gen.py -lr 0.001 -e 10 -b 64 --n_runs 750
 echo "Deactivating Virtual Environment"
 conda deactivate
