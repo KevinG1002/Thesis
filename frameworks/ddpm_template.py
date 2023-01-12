@@ -108,7 +108,7 @@ class DDPMDiffusion:
                 mbatch_y = mbatch_y.to(self.device)
                 self.optimizer.zero_grad()
                 self.loss = self.ddpm.l_simple(mbatch_x)
-                if idx % 200 == 0:
+                if idx % 100 == 0:
                     print("Diffusion Loss %.3f" % self.loss)
                 self.loss.backward()
                 self.optimizer.step()
