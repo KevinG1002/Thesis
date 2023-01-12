@@ -16,7 +16,7 @@ class DDPM:
     ):
         super().__init__()
         self.eps_nn = eps_nn.to(device)
-        self.betas = torch.linspace(0.00001, 0.01, diffusion_steps).to(device)
+        self.betas = torch.linspace(0.0001, 0.02, diffusion_steps).to(device)
         self.alphas = 1 - self.betas
         self.alpha_bar = torch.cumprod(
             self.alphas, dim=0
@@ -72,7 +72,8 @@ class DDPM:
         eps_theta = self.eps_nn(
             xt, t
         )  # Get predicted noise from reverse process from model that estimates it, \epsilon_\theta(x_t, t), which takes current diffusion sample, x_t and diffusion step t as inputs
-        alpha_t = self.alphas[t]
+        # alpha_t = self.alphas[t]
+        alpha_t = torch.gather(self.alphas, 0, t)
         alpha_bar_t = self.compute_alpha_bar(t)
         eps_theta_factor = (1 - alpha_t) / (1 - alpha_bar_t) ** (1 / 2)
         mean_p_t = torch.einsum(
