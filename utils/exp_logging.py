@@ -51,7 +51,7 @@ def checkpoint(
     torch.save(
         {
             "epochs": epoch,
-            "unet_state_dict": model_state_dict,
+            "model_state_dict": model_state_dict,
             "optimizer_state_dict": optimizer_state_dict,
             "loss": loss,
         },
