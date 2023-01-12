@@ -43,12 +43,14 @@ class DDPMSampler:
         img = img.clip(
             0, 1
         )  # forces values to be between 0 and 1. If value lower than 0 -> 0 if value greater than 1 -> 1.
-        img = img.cpu().numpy()
-        plt.imshow(
-            img.transpose(1, 2, 0)
+        img = (
+            img.cpu().numpy().transpose(1, 2, 0)
         )  # Changes view so that channels are last dim.
-        plt.title(title)
-        plt.show()
+        # plt.imshow(
+        #     img.transpose(1, 2, 0)
+        # )
+        # plt.title(title)
+        # plt.show()
         plt.imsave(f"{self.experiment_dir}/{title}.jpg")
 
     def sample(self, n_samples: int = 16):

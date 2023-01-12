@@ -108,56 +108,63 @@ def run(cfg: CONFIG):
     if cfg.log_training:
         cfg.logger.save_results(train_metrics)
 
+    diffusion_process.sample("after_training")
+
+    ## DIFFUSION MODEL ON MLP DATASET ##
     # checkpoint = torch.load("/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-12_11-23-54_DDPM_model_dataset_MNIST_e_1_150_steps/checkpoints/ddpm_fully_trained_e_1_loss_1.000.pt")
     # diffusion_process.checkpoint_dir_path = "/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-12_11-23-54_DDPM_model_dataset_MNIST_e_1_150_steps/checkpoints/"
     # diffusion_process.noise_predictor.load_state_dict(checkpoint["unet_state_dict"])
-    (
-        sample_1,
-        sample_2,
-        sample_3,
-        sample_4,
-        sample_5,
-    ) = diffusion_process.sample()
-    
-    gen_model_test_dataset= DatasetRetriever(cfg.dataset.original_dataset)    
-    _, test_set = gen_model_test_dataset()
+    # gen_samples = diffusion_process.sample("after_training")
 
-    generated_model_1 = tensor_to_nn(sample_1, cfg.dataset.base_model)
-    test_process = SupervisedLearning(generated_model_1, test_set=test_set, device = cfg.device)
-    print("\nTesting Generated Sample 1:\n")
-    test_process.test()
+    # gen_model_test_dataset = DatasetRetriever(cfg.dataset.original_dataset)
+    # _, test_set = gen_model_test_dataset()
 
-    generated_model_2 = tensor_to_nn(sample_2, cfg.dataset.base_model)
-    test_process_2 = SupervisedLearning(generated_model_2, test_set=test_set, device = cfg.device)
-    print("\nTesting Generated Sample 2:\n")
-    test_process_2.test()
+    # generated_model_1 = tensor_to_nn(gen_samples[0], cfg.dataset.base_model)
+    # test_process = SupervisedLearning(
+    #     generated_model_1, test_set=test_set, device=cfg.device
+    # )
+    # print("\nTesting Generated Sample 1:\n")
+    # test_process.test()
 
-    generated_model_3 = tensor_to_nn(sample_3, cfg.dataset.base_model)
-    test_process_3 = SupervisedLearning(generated_model_3, test_set=test_set, device = cfg.device)
-    print("\nTesting Generated Sample 3:\n")
-    test_process_3.test()
+    # generated_model_2 = tensor_to_nn(gen_samples[1], cfg.dataset.base_model)
+    # test_process_2 = SupervisedLearning(
+    #     generated_model_2, test_set=test_set, device=cfg.device
+    # )
+    # print("\nTesting Generated Sample 2:\n")
+    # test_process_2.test()
 
-    generated_model_4 = tensor_to_nn(sample_4, cfg.dataset.base_model)
-    test_process_4 = SupervisedLearning(generated_model_4, test_set=test_set, device = cfg.device)
-    print("\nTesting Generated Sample 4:\n")
-    test_process_4.test()
+    # generated_model_3 = tensor_to_nn(gen_samples[2], cfg.dataset.base_model)
+    # test_process_3 = SupervisedLearning(
+    #     generated_model_3, test_set=test_set, device=cfg.device
+    # )
+    # print("\nTesting Generated Sample 3:\n")
+    # test_process_3.test()
 
-    generated_model_5 = tensor_to_nn(sample_5, cfg.dataset.base_model)
-    test_process_5 = SupervisedLearning(generated_model_5, test_set=test_set, device = cfg.device)
-    print("\nTesting Generated Sample 5:\n")
-    test_process_5.test()
+    # generated_model_4 = tensor_to_nn(gen_samples[3], cfg.dataset.base_model)
+    # test_process_4 = SupervisedLearning(
+    #     generated_model_4, test_set=test_set, device=cfg.device
+    # )
+    # print("\nTesting Generated Sample 4:\n")
+    # test_process_4.test()
+
+    # generated_model_5 = tensor_to_nn(gen_samples[4], cfg.dataset.base_model)
+    # test_process_5 = SupervisedLearning(
+    #     generated_model_5, test_set=test_set, device=cfg.device
+    # )
+    # print("\nTesting Generated Sample 5:\n")
+    # test_process_5.test()
 
 
 def main():
-    dataset_name = "model_dataset_MNIST"
+    dataset_name = "MNIST"
     cfg = CONFIG(
         dataset_name,
-        n_diffusion_steps = 150,
-        sample_channels = 1,
-        epochs=40,
+        n_diffusion_steps=1000,
+        sample_channels=1,
+        epochs=100,
         learning_rate=1e-4,
-        batch_size=4,
-        sample_size=(None,None),
+        batch_size=64,
+        sample_size=(24, 24),
         log_training=True,
         checkpoint_every=2,
     )

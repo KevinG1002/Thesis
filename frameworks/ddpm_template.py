@@ -91,6 +91,7 @@ class DDPMDiffusion:
                 checkpoint_every <= self.epochs
             ), "Checkpoint frequency greater than number of epochs. Current program won't checkpoint models."
         # Attribute set up within init function.
+        self.experiment_dir = os.path.dirname(self.checkpoint_dir_path)
 
     def train(self):
         """
@@ -112,7 +113,7 @@ class DDPMDiffusion:
                     print("Diffusion Loss %.3f" % self.loss)
                 self.loss.backward()
                 self.optimizer.step()
-            self.sample()
+            self.sample(f"epoch_{epoch}")
             train_metrics["train_diff_loss"].append(self.loss.item())
             if self.checkpoint_every and (epoch % self.checkpoint_every == 0):
                 checkpoint_name = "ddpm_checkpoint_e_%d_loss_%.3f.pt" % (
@@ -145,7 +146,7 @@ class DDPMDiffusion:
         return train_metrics
 
     @torch.no_grad()
-    def sample(self):
+    def sample(self, title: str = ""):
         """
         Sample from diffusion model
         """
@@ -165,21 +166,20 @@ class DDPMDiffusion:
             x_t = self.ddpm.sample_p_t_reverse_process(
                 x_t, x_t.new_full((self.num_gen_samples,), t_, dtype=torch.long)
             )
-        sample1, sample2, sample3, sample4, sample5 = torch.chunk(x_t, 5, 0)
-        if isinstance(self.dataset, ModelsDataset):
-            sample1 = self.dataset.restore_original_tensor(sample1)
-            sample2 = self.dataset.restore_original_tensor(sample2)
-            sample3 = self.dataset.restore_original_tensor(sample3)
-            sample4 = self.dataset.restore_original_tensor(sample4)
-            sample5 = self.dataset.restore_original_tensor(sample5)
-        experiment_dir = os.path.dirname(self.checkpoint_dir_path)
-        plt.imsave(f"{experiment_dir}/sample1.png", sample1.cpu().squeeze().numpy())
-        plt.imsave(f"{experiment_dir}/sample2.png", sample2.cpu().squeeze().numpy())
-        plt.imsave(f"{experiment_dir}/sample3.png", sample3.cpu().squeeze().numpy())
-        plt.imsave(f"{experiment_dir}/sample4.png", sample4.cpu().squeeze().numpy())
-        plt.imsave(f"{experiment_dir}/sample5.png", sample5.cpu().squeeze().numpy())
-        return sample1, sample2, sample3, sample4, sample5
-
-    @torch.no_grad()
-    def evaluate(self):
-        pass
+        # sample1, sample2, sample3, sample4, sample5 = torch.chunk(x_t, 5, 0)
+        xt = xt.cpu().numpy()
+        for i in range(self.num_gen_samples):
+            sample = xt[i]
+            if isinstance(self.dataset, ModelsDataset):
+                sample = self.dataset.restore_original_tensor(sample)
+                # sample2 = self.dataset.restore_original_tensor(sample2)
+                # sample3 = self.dataset.restore_original_tensor(sample3)
+                # sample4 = self.dataset.restore_original_tensor(sample4)
+                # sample5 = self.dataset.restore_original_tensor(sample5)
+            plt.imsave(f"{self.experiment_dir}/{title}_gen_sample_{i}.png", sample)
+        # plt.imsave(f"{experiment_dir}/sample2.png", sample2.cpu().squeeze().numpy())
+        # plt.imsave(f"{experiment_dir}/sample3.png", sample3.cpu().squeeze().numpy())
+        # plt.imsave(f"{experiment_dir}/sample4.png", sample4.cpu().squeeze().numpy())
+        # plt.imsave(f"{experiment_dir}/sample5.png", sample5.cpu().squeeze().numpy())
+        # return sample1, sample2, sample3, sample4, sample5
+        return xt
