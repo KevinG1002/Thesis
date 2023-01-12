@@ -1,4 +1,4 @@
-import torch
+import torch, os
 from torchvision.datasets import MNIST, CIFAR10, CelebA
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, random_split
@@ -136,13 +136,20 @@ class DatasetRetriever:
             print(
                 "Full dataset returned. Train test split can be easily done with random_split method from torch utils."
             )
+            curr_dir = os.getcwd()
+            os.chdir("../")
+            previous_dir = os.getcwd()
+            print(previous_dir)
+            os.chdir(curr_dir)
+
             self.dataset = ModelsDataset(
-                root_dir="/Users/kevingolan/Documents/Coding_Assignments/Thesis/datasets/model_dataset_MNIST/model_dataset.json",
-                model_labels_path="/Users/kevingolan/Documents/Coding_Assignments/Thesis/datasets/model_dataset_MNIST/model_dataset.json",
+                root_dir=f"{previous_dir}/datasets/model_dataset_MNIST/",
+                model_labels_path=f"{previous_dir}/datasets/model_dataset_MNIST/model_dataset_test.json",
                 base_model=MLP(784, 10),
                 manipulations=nn_to_2d_tensor,
                 padding=True,
+                original_dataset="MNIST"
             )
-            return self.dataset, _
+            return self.dataset, None
         else:
             raise "Dataset not available yet"
