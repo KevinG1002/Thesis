@@ -5,7 +5,7 @@ from torch.optim import Adam
 import matplotlib.pyplot as plt
 from datasets.model_dataset import ModelsDataset
 from models.ddpm import DDPM
-from utils.logging import checkpoint
+from utils.exp_logging import checkpoint
 from models.unet import DDPMUNet
 
 
@@ -149,6 +149,8 @@ class DDPMDiffusion:
         """
         Sample from diffusion model
         """
+        if isinstance(self.dataset, ModelsDataset):
+            self.sample_dimensions = self.dataset.tensor_sample_dim[1:]
         x_T = torch.randn(
             [
                 self.num_gen_samples,
