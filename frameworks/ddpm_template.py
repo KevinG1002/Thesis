@@ -1,5 +1,6 @@
 import torch
 import os
+import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import Adam
 import matplotlib.pyplot as plt
@@ -167,19 +168,13 @@ class DDPMDiffusion:
                 x_t, x_t.new_full((self.num_gen_samples,), t_, dtype=torch.long)
             )
         # sample1, sample2, sample3, sample4, sample5 = torch.chunk(x_t, 5, 0)
-        xt = xt.cpu().numpy()
+        x_t = x_t.cpu().numpy()
+        print(x_t.shape)
+        restored_samples = []
         for i in range(self.num_gen_samples):
-            sample = xt[i]
+            sample = x_t[i]
             if isinstance(self.dataset, ModelsDataset):
-                sample = self.dataset.restore_original_tensor(sample)
-                # sample2 = self.dataset.restore_original_tensor(sample2)
-                # sample3 = self.dataset.restore_original_tensor(sample3)
-                # sample4 = self.dataset.restore_original_tensor(sample4)
-                # sample5 = self.dataset.restore_original_tensor(sample5)
-            plt.imsave(f"{self.experiment_dir}/{title}_gen_sample_{i}.png", sample)
-        # plt.imsave(f"{experiment_dir}/sample2.png", sample2.cpu().squeeze().numpy())
-        # plt.imsave(f"{experiment_dir}/sample3.png", sample3.cpu().squeeze().numpy())
-        # plt.imsave(f"{experiment_dir}/sample4.png", sample4.cpu().squeeze().numpy())
-        # plt.imsave(f"{experiment_dir}/sample5.png", sample5.cpu().squeeze().numpy())
-        # return sample1, sample2, sample3, sample4, sample5
-        return xt
+                restored_samples.append(self.dataset.restore_original_tensor(sample))
+            else:
+                plt.imsave(f"{self.experiment_dir}/{title}_gen_sample_{i}.png", np.squeeze(sample))
+        return restored_samples

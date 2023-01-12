@@ -45,7 +45,7 @@ class CONFIG:
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         dataset = DatasetRetriever(
-            self.dataset_name, resize_option=False, resize_dim=self.sample_size
+            self.dataset_name, resize_option=True, resize_dim=self.sample_size
         )
         self.dataset, _ = dataset()
         self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_DDPM_{self.dataset_name}_e_{self.epochs}_{self.n_diffusion_steps}_steps"
@@ -161,12 +161,13 @@ def main():
         dataset_name,
         n_diffusion_steps=1000,
         sample_channels=1,
-        epochs=100,
+        epochs=5,
         learning_rate=1e-4,
         batch_size=64,
         sample_size=(24, 24),
         log_training=True,
-        checkpoint_every=2,
+        checkpoint_every=1,
+        is_attention=[False, False, False, True],
     )
     run(cfg)
 
