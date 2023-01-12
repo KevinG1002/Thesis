@@ -45,7 +45,7 @@ class CONFIG:
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         dataset = DatasetRetriever(
-            self.dataset_name, resize_option=True, resize_dim=self.sample_size
+            self.dataset_name, resize_option=False, resize_dim=self.sample_size
         )
         self.dataset, _ = dataset()
         self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_DDPM_{self.dataset_name}_e_{self.epochs}_{self.n_diffusion_steps}_steps"
@@ -107,6 +107,10 @@ def run(cfg: CONFIG):
     train_metrics = diffusion_process.train()
     if cfg.log_training:
         cfg.logger.save_results(train_metrics)
+
+    # checkpoint = torch.load("/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-12_11-23-54_DDPM_model_dataset_MNIST_e_1_150_steps/checkpoints/ddpm_fully_trained_e_1_loss_1.000.pt")
+    # diffusion_process.checkpoint_dir_path = "/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-12_11-23-54_DDPM_model_dataset_MNIST_e_1_150_steps/checkpoints/"
+    # diffusion_process.noise_predictor.load_state_dict(checkpoint["unet_state_dict"])
     (
         sample_1,
         sample_2,
@@ -114,35 +118,33 @@ def run(cfg: CONFIG):
         sample_4,
         sample_5,
     ) = diffusion_process.sample()
+    
+    gen_model_test_dataset= DatasetRetriever(cfg.dataset.original_dataset)    
+    _, test_set = gen_model_test_dataset()
 
     generated_model_1 = tensor_to_nn(sample_1, cfg.dataset.base_model)
-    _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
-    test_process = SupervisedLearning(generated_model_1, test_set=test_set)
+    test_process = SupervisedLearning(generated_model_1, test_set=test_set, device = cfg.device)
     print("\nTesting Generated Sample 1:\n")
     test_process.test()
 
     generated_model_2 = tensor_to_nn(sample_2, cfg.dataset.base_model)
-    _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
-    test_process_2 = SupervisedLearning(generated_model_2, test_set=test_set)
+    test_process_2 = SupervisedLearning(generated_model_2, test_set=test_set, device = cfg.device)
     print("\nTesting Generated Sample 2:\n")
     test_process_2.test()
 
     generated_model_3 = tensor_to_nn(sample_3, cfg.dataset.base_model)
-    _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
-    test_process_3 = SupervisedLearning(generated_model_3, test_set=test_set)
+    test_process_3 = SupervisedLearning(generated_model_3, test_set=test_set, device = cfg.device)
     print("\nTesting Generated Sample 3:\n")
     test_process_3.test()
 
     generated_model_4 = tensor_to_nn(sample_4, cfg.dataset.base_model)
-    _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
-    test_process_4 = SupervisedLearning(generated_model_4, test_set=test_set)
-    print("\nTesting Generated Sample 1:\n")
+    test_process_4 = SupervisedLearning(generated_model_4, test_set=test_set, device = cfg.device)
+    print("\nTesting Generated Sample 4:\n")
     test_process_4.test()
 
     generated_model_5 = tensor_to_nn(sample_5, cfg.dataset.base_model)
-    _, test_set = DatasetRetriever(cfg.dataset.original_dataset)
-    test_process_5 = SupervisedLearning(generated_model_5, test_set=test_set)
-    print("\nTesting Generated Sample 1:\n")
+    test_process_5 = SupervisedLearning(generated_model_5, test_set=test_set, device = cfg.device)
+    print("\nTesting Generated Sample 5:\n")
     test_process_5.test()
 
 
@@ -152,12 +154,12 @@ def main():
         dataset_name,
         n_diffusion_steps = 150,
         sample_channels = 1,
-        epochs=50,
-        learning_rate=1e-3,
-        batch_size=8,
+        epochs=40,
+        learning_rate=1e-4,
+        batch_size=4,
         sample_size=(None,None),
         log_training=True,
-        checkpoint_every=4,
+        checkpoint_every=2,
     )
     run(cfg)
 
