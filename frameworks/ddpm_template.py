@@ -29,6 +29,7 @@ class DDPMDiffusion:
         sample_dimensions: "tuple[int]",
         channel_multipliers: "list[int]",
         is_attention: "list[bool]",
+        n_blocks: int,
         num_gen_samples: int,
         batch_size: int,
         learning_rate: float,
@@ -76,7 +77,7 @@ class DDPMDiffusion:
         self.dataset = dataset
         self.device = device
         self.noise_predictor = DDPMUNet(
-            sample_channels, num_channels, channel_multipliers, is_attention
+            sample_channels, num_channels, channel_multipliers, is_attention, n_blocks
         ).to(self.device)
         self.ddpm = DDPM(self.noise_predictor, self.diffusion_steps, self.device)
         self.optimizer = Adam(self.noise_predictor.parameters(), self.learning_rate)

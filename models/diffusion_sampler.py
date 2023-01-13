@@ -2,6 +2,7 @@
 import torch, os
 import matplotlib.pyplot as plt
 from frameworks.ddpm_template import DDPMDiffusion
+from models.ddpm import gather
 
 
 class DDPMSampler:
@@ -82,10 +83,10 @@ class DDPMSampler:
         """
         Sample from p_theta(x(t-1) | x(t))
         """
-        alpha_bar = torch.gather(self.alpha_bar, 0, t)
-        alpha = torch.gather(self.alpha, 0, t)
+        alpha_bar = gather(self.alpha_bar, t)
+        alpha = gather(self.alpha, t)
         eps_coefficient = (1 - alpha) / (1 - alpha_bar) ** 0.5
         mean = 1 / (alpha**0.5) * (xt - eps_coefficient * eps_theta)
-        var = torch.gather(self.sigma2, t)
+        var = gather(self.sigma2, t)
         eps = torch.randn(xt.shape, device=xt.device)
         return mean + var(**0.5) * eps

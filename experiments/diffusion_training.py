@@ -24,6 +24,7 @@ class CONFIG:
         sample_size: "tuple[int]" = (24, 24),
         channel_mulipliers: "list[int]" = [1, 2, 2, 4],
         is_attention: "list[bool]" = [False, False, False, False],
+        n_blocks: int = 2,
         batch_size: int = 16,
         epochs: int = 50,
         learning_rate: float = 1e-4,
@@ -37,6 +38,7 @@ class CONFIG:
         self.sample_size = sample_size
         self.channel_multipliers = channel_mulipliers
         self.is_attention = is_attention
+        self.n_blocks = n_blocks
         self.batch_size = batch_size
         self.epochs = epochs
         self.learning_rate = learning_rate
@@ -94,6 +96,7 @@ def run(cfg: CONFIG):
         sample_dimensions=cfg.sample_size,
         channel_multipliers=cfg.channel_multipliers,
         is_attention=cfg.is_attention,
+        n_blocks=cfg.n_blocks,
         num_gen_samples=cfg.n_samples_gen,
         batch_size=cfg.batch_size,
         learning_rate=cfg.learning_rate,
@@ -168,6 +171,7 @@ def main():
         log_training=True,
         checkpoint_every=1,
         is_attention=[False, False, False, False],
+        n_blocks=4,
     )
     run(cfg)
 
