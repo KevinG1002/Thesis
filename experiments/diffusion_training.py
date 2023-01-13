@@ -8,6 +8,7 @@ from datasets.get_dataset import DatasetRetriever
 from frameworks.ddpm_template import DDPMDiffusion
 from frameworks.sgd_template import SupervisedLearning
 from models.mlp import MLP
+from models.diffusion_sampler import DDPMSampler
 from utils.weight_transformations import nn_to_2d_tensor, tensor_to_nn
 from utils.exp_logging import Logger
 
@@ -113,6 +114,14 @@ def run(cfg: CONFIG):
 
     diffusion_process.sample("after_training")
 
+    diffusion_sampler = DDPMSampler(
+        diffusion_process,
+        sample_channels=cfg.sample_channels,
+        sample_size=cfg.sample_size,
+        device=cfg.device,
+        checkpoint_dir=cfg.checkpoint_path,
+    )
+    diffusion_sampler.sample()
     ## DIFFUSION MODEL ON MLP DATASET ##
     # checkpoint = torch.load("/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-12_11-23-54_DDPM_model_dataset_MNIST_e_1_150_steps/checkpoints/ddpm_fully_trained_e_1_loss_1.000.pt")
     # diffusion_process.checkpoint_dir_path = "/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-12_11-23-54_DDPM_model_dataset_MNIST_e_1_150_steps/checkpoints/"
@@ -162,16 +171,17 @@ def main():
     dataset_name = "MNIST"
     cfg = CONFIG(
         dataset_name,
-        n_diffusion_steps=10,
+        n_diffusion_steps=1000,
         sample_channels=1,
-        epochs=1,
-        learning_rate=1e-4,
+        epochs=5,
+        learning_rate=2e-5,
         batch_size=64,
         sample_size=(24, 24),
         log_training=True,
         checkpoint_every=1,
         is_attention=[False, False, False, False],
         n_blocks=4,
+        is_attention=[False, False, True, True],
     )
     run(cfg)
 

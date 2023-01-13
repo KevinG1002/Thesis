@@ -173,7 +173,6 @@ class DDPMDiffusion:
             )
         # sample1, sample2, sample3, sample4, sample5 = torch.chunk(x_t, 5, 0)
         x_t = x_t.cpu().numpy()
-        print(x_t.shape)
         restored_samples = []
         for i in range(self.num_gen_samples):
             sample = x_t[i]
