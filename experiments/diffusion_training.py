@@ -159,15 +159,15 @@ def main():
     dataset_name = "MNIST"
     cfg = CONFIG(
         dataset_name,
-        n_diffusion_steps=1000,
+        n_diffusion_steps=10,
         sample_channels=1,
-        epochs=5,
+        epochs=1,
         learning_rate=1e-4,
         batch_size=64,
         sample_size=(24, 24),
         log_training=True,
         checkpoint_every=1,
-        is_attention=[False, False, False, True],
+        is_attention=[False, False, False, False],
     )
     run(cfg)
 

@@ -92,7 +92,10 @@ class DDPMDiffusion:
                 checkpoint_every <= self.epochs
             ), "Checkpoint frequency greater than number of epochs. Current program won't checkpoint models."
         # Attribute set up within init function.
-        self.experiment_dir = os.path.dirname(self.checkpoint_dir_path)
+        if self.checkpoint_dir_path:
+            self.experiment_dir = os.path.dirname(self.checkpoint_dir_path)
+        else:
+            self.experiment_dir = os.getcwd()
 
     def train(self):
         """
@@ -176,5 +179,8 @@ class DDPMDiffusion:
             if isinstance(self.dataset, ModelsDataset):
                 restored_samples.append(self.dataset.restore_original_tensor(sample))
             else:
-                plt.imsave(f"{self.experiment_dir}/{title}_gen_sample_{i}.png", np.squeeze(sample))
+                plt.imsave(
+                    f"{self.experiment_dir}/{title}_gen_sample_{i}.png",
+                    np.squeeze(sample),
+                )
         return restored_samples

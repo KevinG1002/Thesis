@@ -7,6 +7,12 @@ import torch.utils.data
 import torch.nn as nn
 
 
+def gather(consts: torch.Tensor, t: torch.Tensor):
+    """Gather consts for $t$ and reshape to feature map shape (taken from LabML utils script)"""
+    c = consts.gather(-1, t)
+    return c.reshape(-1, 1, 1, 1)
+
+
 class DDPM:
     def __init__(
         self,
@@ -39,10 +45,13 @@ class DDPM:
             - x0: original sample from forward diffusion takes place
             - t: number of t'th step in diffusion process.
         """
-        alpha_bar_t = self.compute_alpha_bar(t)
-        mean = torch.einsum("abcd,a->abcd", x0, alpha_bar_t ** (0.5)).to(self.device)
-        covariance = 1 - alpha_bar_t
-        return mean.to(self.device), covariance.to(self.device)
+        # alpha_bar_t = self.compute_alpha_bar(t)
+        # mean = torch.einsum("abcd,a->abcd", x0, alpha_bar_t ** (0.5)).to(self.device)
+        # covariance = 1 - alpha_bar_t
+        mean = gather(self.alpha_bar, t) ** 0.5 * x0
+        var = 1 - gather(self.alpha_bar, t)
+        # return mean.to(self.device), covariance.to(self.device)
+        return mean.to(self.device), var.to(self.device)
 
     def sample_q_xt_given_x0(
         self, x0: torch.Tensor, t: torch.Tensor, eps: torch.Tensor = None
@@ -51,14 +60,17 @@ class DDPM:
         Returns samples from q(x_t | x_0) as part of forward diffusion
         process.
         """
-        mean, cov = self.q_xt_given_x0(x0, t)
-        mean = mean.to(self.device)
-        cov = cov.to(self.device)
         if eps is not None:
-            eps = torch.distributions.Normal(0, 1).sample(x0.size())
-        eps = eps.to(self.device)
+            # eps = torch.distributions.Normal(0, 1).sample(x0.size())
+            eps = torch.randn_like(x0).to(self.device)
+        # mean, cov = self.q_xt_given_x0(x0, t)
+        mean, var = self.q_xt_given_x0(x0, t)
+        # mean = mean.to(self.device)
+        # cov = cov.to(self.device)
 
-        return mean + torch.einsum("abcd, a->abcd", eps, (cov ** (1 / 2)))
+        eps = eps.to(self.device)
+        # return mean + torch.einsum("abcd, a->abcd", eps, (cov ** (1 / 2)))
+        return mean + (var**0.5) * eps
 
     def sample_p_t_reverse_process(self, xt: torch.Tensor, t: torch.Tensor):
         """
@@ -72,18 +84,25 @@ class DDPM:
         eps_theta = self.eps_nn(
             xt, t
         )  # Get predicted noise from reverse process from model that estimates it, \epsilon_\theta(x_t, t), which takes current diffusion sample, x_t and diffusion step t as inputs
+        alpha_bar = gather(self.alpha_bar, t)
+        alpha = gather(self.alphas, t)
+        eps_coef = (1 - alpha) / (1 - alpha_bar) ** 0.5
+        mean = 1 / (alpha**0.5) * (xt - eps_coef * eps_theta)
+        var = gather(self.covariance_reverse_process, t)
+        eps = torch.randn(xt.shape, device=xt.device)
+        return mean + (var**0.5) * eps
         # alpha_t = self.alphas[t]
-        alpha_t = torch.gather(self.alphas, 0, t)
-        alpha_bar_t = self.compute_alpha_bar(t)
-        eps_theta_factor = (1 - alpha_t) / (1 - alpha_bar_t) ** (1 / 2)
-        mean_p_t = torch.einsum(
-            "abcd, a->abcd",
-            (xt - torch.einsum("abcd, a->abcd", eps_theta, eps_theta_factor)),
-            1 / alpha_t ** (1 / 2),
-        )
-        var_p_t = self.covariance_reverse_process[t]
-        eps = torch.distributions.Normal(0, 1).sample(xt.size()).to(self.device)
-        return mean_p_t + torch.einsum("abcd, a->abcd", eps, (var_p_t) ** (1 / 2))
+        # alpha_t = torch.gather(self.alphas, 0, t)
+        # alpha_bar_t = self.compute_alpha_bar(t)
+        # eps_theta_factor = (1 - alpha_t) / (1 - alpha_bar_t) ** (1 / 2)
+        # mean_p_t = torch.einsum(
+        #     "abcd, a->abcd",
+        #     (xt - torch.einsum("abcd, a->abcd", eps_theta, eps_theta_factor)),
+        #     1 / alpha_t ** (1 / 2),
+        # )
+        # var_p_t = torch.gather(self.covariance_reverse_process, 0, t)
+        # eps = torch.distributions.Normal(0, 1).sample(xt.size()).to(self.device)
+        # return mean_p_t + torch.einsum("abcd, a->abcd", eps, (var_p_t) ** (1 / 2))
 
     def l_simple(self, x0: torch.Tensor, noise: torch.Tensor = None):
         """
@@ -96,9 +115,11 @@ class DDPM:
             0, self.diffusion_steps, (batch_size,), device=x0.device, dtype=torch.long
         )
         if not noise:
-            noise = torch.distributions.Normal(0, 1).sample(x0.size())
-        noise = noise.to(self.device)
-        xt = self.sample_q_xt_given_x0(x0, t, noise)
+            # noise = torch.distributions.Normal(0, 1).sample(x0.size())
+            noise = torch.randn_like(x0).to(self.device)
+        # noise = noise.to(self.device)
+        # xt = self.sample_q_xt_given_x0(x0, t, noise)
+        xt = self.sample_q_xt_given_x0(x0, t, eps=noise)
         eps_theta = self.eps_nn(xt, t)
         return F.mse_loss(noise, eps_theta)
 
