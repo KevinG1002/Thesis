@@ -1,4 +1,5 @@
 # Script based on https://nn.labml.ai/diffusion/ddpm/evaluate.html; Full-credits to them.
+import numpy as np
 import torch, os
 import matplotlib.pyplot as plt
 from frameworks.ddpm_template import DDPMDiffusion
@@ -45,14 +46,14 @@ class DDPMSampler:
             0, 1
         )  # forces values to be between 0 and 1. If value lower than 0 -> 0 if value greater than 1 -> 1.
         img = (
-            img.cpu().numpy().transpose(1, 2, 0)
+            img.cpu().detach().numpy().transpose(1, 2, 0)
         )  # Changes view so that channels are last dim.
         # plt.imshow(
         #     img.transpose(1, 2, 0)
         # )
         # plt.title(title)
         # plt.show()
-        plt.imsave(f"{self.experiment_dir}/{title}.jpg")
+        plt.imsave(f"{self.experiment_dir}/{title}.jpg", np.squeeze(img))
 
     def sample(self, n_samples: int = 16):
         xt = torch.randn(
@@ -68,8 +69,8 @@ class DDPMSampler:
         for t_ in range(n_steps):
             t = n_steps - t_ - 1
             xt = self.diffusion_process.ddpm.sample_p_t_reverse_process(
-                xt, xt.new_full((n_samples,)), t, dtype=torch.long
-            )  # sample from reverse processs
+                xt, xt.new_full((n_samples,), t, dtype=torch.long
+            ))  # sample from reverse processs
             return xt
 
     def p_x0(self, xt: torch.Tensor, t: torch.Tensor, eps: torch.tensor):
