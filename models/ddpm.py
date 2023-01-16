@@ -60,7 +60,7 @@ class DDPM:
         Returns samples from q(x_t | x_0) as part of forward diffusion
         process.
         """
-        if eps is not None:
+        if eps is None:
             # eps = torch.distributions.Normal(0, 1).sample(x0.size())
             eps = torch.randn_like(x0).to(self.device)
         # mean, cov = self.q_xt_given_x0(x0, t)
