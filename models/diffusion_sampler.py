@@ -19,8 +19,12 @@ class DDPMSampler:
         self.diffusion_process = diffusion_process
         self.sample_channels = sample_channels
         self.sample_size = sample_size
-        self.checkpoint_dir = checkpoint_dir
-        self.experiment_dir = os.path.dirname(self.checkpoint_dir)
+        # self.checkpoint_dir = checkpoint_dir
+        # self.experiment_dir = os.path.dirname(self.checkpoint_dir)
+        if checkpoint_dir:
+            self.experiment_dir = os.path.dirname(checkpoint_dir)
+        else:
+            self.experiment_dir = os.getcwd()
 
         self.n_steps = diffusion_process.diffusion_steps  # number of diffusion steps
         self.noise_predictor = diffusion_process.noise_predictor  # denoising model
