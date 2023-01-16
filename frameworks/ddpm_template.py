@@ -81,7 +81,9 @@ class DDPMDiffusion:
         ).to(self.device)
         self.ddpm = DDPM(self.noise_predictor, self.diffusion_steps, self.device)
         self.optimizer = Adam(self.noise_predictor.parameters(), self.learning_rate)
-
+        self.dataloader = DataLoader(
+            self.dataset, self.batch_size, shuffle=True, pin_memory=True
+        )
         # Checkpointing attributes
         self.checkpoint_every = checkpoint_every
         self.checkpoint_dir_path = checkpoint_dir_path
@@ -98,27 +100,28 @@ class DDPMDiffusion:
         else:
             self.experiment_dir = os.getcwd()
 
+    def train_epoch(self, epoch_idx):
+        for idx, (mbatch_x, mbatch_y) in enumerate(self.dataloader):
+            mbatch_x = mbatch_x.to(self.device)
+            mbatch_y = mbatch_y.to(self.device)
+            self.optimizer.zero_grad()
+            self.loss = self.ddpm.l_simple(mbatch_x)
+            if idx % 100 == 0:
+                print("Epoch %d : Diffusion Loss %.3f" % (epoch_idx, self.loss))
+            self.loss.backward()
+            self.optimizer.step()
+
     def train(self):
         """
         Train UNet in conjuction with DDPM.
         """
         print("Training DDPM on device:", self.device)
         train_metrics = {"train_diff_loss": []}
-        self.dataloader = DataLoader(
-            self.dataset, self.batch_size, shuffle=True, pin_memory=True
-        )
+
         for epoch in range(self.epochs):
             print("\nEpoch %d\n" % (epoch + 1))
-            for idx, (mbatch_x, mbatch_y) in enumerate(self.dataloader):
-                mbatch_x = mbatch_x.to(self.device)
-                mbatch_y = mbatch_y.to(self.device)
-                self.optimizer.zero_grad()
-                self.loss = self.ddpm.l_simple(mbatch_x)
-                if idx % 100 == 0:
-                    print("Diffusion Loss %.3f" % self.loss)
-                self.loss.backward()
-                self.optimizer.step()
-            self.sample(f"epoch_{epoch}")
+            self.train_epoch(epoch + 1)
+            self.sample("")
             train_metrics["train_diff_loss"].append(self.loss.item())
             if self.checkpoint_every and (epoch % self.checkpoint_every == 0):
                 checkpoint_name = "ddpm_checkpoint_e_%d_loss_%.3f.pt" % (
@@ -157,7 +160,7 @@ class DDPMDiffusion:
         """
         if isinstance(self.dataset, ModelsDataset):
             self.sample_dimensions = self.dataset.tensor_sample_dim[1:]
-        x_T = torch.randn(
+        x = torch.randn(
             [
                 self.num_gen_samples,
                 self.sample_channels,
@@ -165,17 +168,17 @@ class DDPMDiffusion:
                 self.sample_dimensions[1],
             ]
         )  # Sample from Standard Gaussian (distribution at end of diffusion process) in the dimensions of original sample and sample according to the number of samples to generate.
-        x_t = x_T
-        for t in range(self.diffusion_steps):
-            t_ = self.diffusion_steps - t - 1
-            x_t = self.ddpm.sample_p_t_reverse_process(
-                x_t, x_t.new_full((self.num_gen_samples,), t_, dtype=torch.long)
+
+        for t_ in range(self.diffusion_steps):
+            t = self.diffusion_steps - t_ - 1
+            x = self.ddpm.sample_p_t_reverse_process(
+                x, x.new_full((self.num_gen_samples,), t, dtype=torch.long)
             )
         # sample1, sample2, sample3, sample4, sample5 = torch.chunk(x_t, 5, 0)
-        x_t = x_t.cpu().numpy()
+        x = x.cpu().numpy()
         restored_samples = []
         for i in range(self.num_gen_samples):
-            sample = x_t[i]
+            sample = x[i]
             if isinstance(self.dataset, ModelsDataset):
                 restored_samples.append(self.dataset.restore_original_tensor(sample))
             else:

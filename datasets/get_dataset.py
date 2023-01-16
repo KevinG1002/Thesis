@@ -7,6 +7,20 @@ from utils.weight_transformations import pad_to, unpad, nn_to_2d_tensor
 from models.mlp import MLP
 
 
+def normalize_unit_radius(tensor: torch.Tensor):
+    """
+    Normalizes image to -1 and 1 range
+    """
+    return 2 * tensor / 255.0 - 1
+
+
+def restore_from_unit_radius(tensor: torch.Tensor):
+    """
+    Restores image from [-1, 1] range to [0, 255] range
+    """
+    return (tensor + 1) / 2 * 255.0
+
+
 class DatasetRetriever:
     def __init__(
         self,
@@ -25,6 +39,7 @@ class DatasetRetriever:
                 (0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261)
             ),
             "resize": transforms.Resize(size=resize_dim),
+            "unit_radius_norm": transforms.Lambda(normalize_unit_radius),
         }
 
     def __call__(self) -> "tuple[Dataset, Dataset]":
@@ -35,7 +50,7 @@ class DatasetRetriever:
                         [
                             v
                             for k, v in self.im_transforms.items()
-                            if k in ["scale", "resize"]
+                            if k in ["unit_radius_norm", "resize"]
                         ]
                     ),
                 )[0]
@@ -148,7 +163,7 @@ class DatasetRetriever:
                 base_model=MLP(784, 10),
                 manipulations=nn_to_2d_tensor,
                 padding=True,
-                original_dataset="MNIST"
+                original_dataset="MNIST",
             )
             return self.dataset, None
         else:
