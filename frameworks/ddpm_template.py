@@ -106,7 +106,7 @@ class DDPMDiffusion:
             mbatch_y = mbatch_y.to(self.device)
             self.optimizer.zero_grad()
             self.loss = self.ddpm.l_simple(mbatch_x)
-            if idx % 100 == 0:
+            if idx % 50 == 0:
                 print("Epoch %d : Diffusion Loss %.3f" % (epoch_idx, self.loss))
             self.loss.backward()
             self.optimizer.step()
@@ -175,15 +175,15 @@ class DDPMDiffusion:
                 x, x.new_full((self.num_gen_samples,), t, dtype=torch.long)
             )
         # sample1, sample2, sample3, sample4, sample5 = torch.chunk(x_t, 5, 0)
-        x = x.cpu().numpy()
+        # x = x.cpu().numpy()
         restored_samples = []
         for i in range(self.num_gen_samples):
-            sample = x[i]
+            # sample = x[i]
             if isinstance(self.dataset, ModelsDataset):
-                restored_samples.append(self.dataset.restore_original_tensor(sample))
+                restored_samples.append(self.dataset.restore_original_tensor(x[i]))
             else:
                 plt.imsave(
                     f"{self.experiment_dir}/{title}_gen_sample_{i}.png",
-                    np.squeeze(sample),
+                    np.squeeze(x[i].cpu().numpy()),
                 )
         return restored_samples
