@@ -118,7 +118,7 @@ class DDPMDiffusion:
                     print("Diffusion Loss %.3f" % self.loss)
                 self.loss.backward()
                 self.optimizer.step()
-            self.sample(f"epoch_{epoch}")
+            self.sample()
             train_metrics["train_diff_loss"].append(self.loss.item())
             if self.checkpoint_every and (epoch % self.checkpoint_every == 0):
                 checkpoint_name = "ddpm_checkpoint_e_%d_loss_%.3f.pt" % (
