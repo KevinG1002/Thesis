@@ -31,6 +31,8 @@ class TimeEmbedding(nn.Module):
         embedding = torch.exp(torch.arange(half_dim, device=t.device) * -embedding)
         embedding = t[:, None] * embedding[None, :]
         embedding = torch.cat((embedding.sin(), embedding.cos()), dim=1)
+
+        # Transform with embedding
         embedding = self.activation(self.fc1(embedding))
         embedding = self.fc2(embedding)
         return embedding

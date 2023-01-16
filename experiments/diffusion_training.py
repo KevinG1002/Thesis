@@ -179,7 +179,6 @@ def main():
         sample_size=(24, 24),
         log_training=True,
         checkpoint_every=1,
-        is_attention=[False, False, False, False],
         n_blocks=4,
         is_attention=[False, False, True, True],
     )
