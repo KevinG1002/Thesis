@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from utils.profile import profile
+
 
 class TimeEmbedding(nn.Module):
     def __init__(self, nchannels: int):
@@ -416,7 +418,7 @@ class DDPMUNet(nn.Module):
 
         # for metadata
         self.name = self._get_name()
-
+        
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         t = self.time_embedding(t)
         x = self.sample_projection(x)
