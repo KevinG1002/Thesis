@@ -48,7 +48,7 @@ class CONFIG:
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         dataset = DatasetRetriever(
-            self.dataset_name, resize_option=True, resize_dim=self.sample_size
+            self.dataset_name, resize_option=False, resize_dim=self.sample_size
         )
         self.dataset, _ = dataset()
         self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_DDPM_{self.dataset_name}_e_{self.epochs}_{self.n_diffusion_steps}_steps"
@@ -126,61 +126,62 @@ def run(cfg: CONFIG):
     # checkpoint = torch.load("/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-12_11-23-54_DDPM_model_dataset_MNIST_e_1_150_steps/checkpoints/ddpm_fully_trained_e_1_loss_1.000.pt")
     # diffusion_process.checkpoint_dir_path = "/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-12_11-23-54_DDPM_model_dataset_MNIST_e_1_150_steps/checkpoints/"
     # diffusion_process.noise_predictor.load_state_dict(checkpoint["unet_state_dict"])
-    # gen_samples = diffusion_process.sample("after_training")
+    gen_samples = diffusion_process.sample("after_training")
 
-    # gen_model_test_dataset = DatasetRetriever(cfg.dataset.original_dataset)
-    # _, test_set = gen_model_test_dataset()
+    gen_model_test_dataset = DatasetRetriever(cfg.dataset.original_dataset)
+    _, test_set = gen_model_test_dataset()
 
-    # generated_model_1 = tensor_to_nn(gen_samples[0], cfg.dataset.base_model)
-    # test_process = SupervisedLearning(
-    #     generated_model_1, test_set=test_set, device=cfg.device
-    # )
-    # print("\nTesting Generated Sample 1:\n")
-    # test_process.test()
+    generated_model_1 = tensor_to_nn(gen_samples[0], cfg.dataset.base_model)
+    test_process = SupervisedLearning(
+        generated_model_1, test_set=test_set, device=cfg.device
+    )
+    print("\nTesting Generated Sample 1:\n")
+    test_process.test()
 
-    # generated_model_2 = tensor_to_nn(gen_samples[1], cfg.dataset.base_model)
-    # test_process_2 = SupervisedLearning(
-    #     generated_model_2, test_set=test_set, device=cfg.device
-    # )
-    # print("\nTesting Generated Sample 2:\n")
-    # test_process_2.test()
+    generated_model_2 = tensor_to_nn(gen_samples[1], cfg.dataset.base_model)
+    test_process_2 = SupervisedLearning(
+        generated_model_2, test_set=test_set, device=cfg.device
+    )
+    print("\nTesting Generated Sample 2:\n")
+    test_process_2.test()
 
-    # generated_model_3 = tensor_to_nn(gen_samples[2], cfg.dataset.base_model)
-    # test_process_3 = SupervisedLearning(
-    #     generated_model_3, test_set=test_set, device=cfg.device
-    # )
-    # print("\nTesting Generated Sample 3:\n")
-    # test_process_3.test()
+    generated_model_3 = tensor_to_nn(gen_samples[2], cfg.dataset.base_model)
+    test_process_3 = SupervisedLearning(
+        generated_model_3, test_set=test_set, device=cfg.device
+    )
+    print("\nTesting Generated Sample 3:\n")
+    test_process_3.test()
 
-    # generated_model_4 = tensor_to_nn(gen_samples[3], cfg.dataset.base_model)
-    # test_process_4 = SupervisedLearning(
-    #     generated_model_4, test_set=test_set, device=cfg.device
-    # )
-    # print("\nTesting Generated Sample 4:\n")
-    # test_process_4.test()
+    generated_model_4 = tensor_to_nn(gen_samples[3], cfg.dataset.base_model)
+    test_process_4 = SupervisedLearning(
+        generated_model_4, test_set=test_set, device=cfg.device
+    )
+    print("\nTesting Generated Sample 4:\n")
+    test_process_4.test()
 
-    # generated_model_5 = tensor_to_nn(gen_samples[4], cfg.dataset.base_model)
-    # test_process_5 = SupervisedLearning(
-    #     generated_model_5, test_set=test_set, device=cfg.device
-    # )
-    # print("\nTesting Generated Sample 5:\n")
-    # test_process_5.test()
+    generated_model_5 = tensor_to_nn(gen_samples[4], cfg.dataset.base_model)
+    test_process_5 = SupervisedLearning(
+        generated_model_5, test_set=test_set, device=cfg.device
+    )
+    print("\nTesting Generated Sample 5:\n")
+    test_process_5.test()
 
 
 def main():
-    dataset_name = "MNIST"
+    # dataset_name = "MNIST"
+    dataset_name = "model_dataset_MNIST"
     cfg = CONFIG(
         dataset_name,
         n_diffusion_steps=1000,
         sample_channels=1,
-        epochs=5,
+        epochs=1,
         learning_rate=2e-5,
-        batch_size=64,
-        sample_size=(24, 24),
+        batch_size=3,
+        sample_size=(None, None),
         log_training=True,
         checkpoint_every=1,
-        n_blocks=4,
-        is_attention=[False, False, True, True],
+        n_blocks=2,
+        is_attention=[False, False, False, True],
     )
     run(cfg)
 
