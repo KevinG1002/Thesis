@@ -13,6 +13,8 @@ def argument_parser():
     parser.add_argument("--weight_decay", default=0.999, type=float)
     parser.add_argument("--M_snapshots", default=10, type=int)
     parser.add_argument("--save_every", default=None, type=int)
+    parser.add_argument("--experiment_dir_path", default=None, type=str)
+    parser.add_argument("--checkpoint_file_path", default=None, type=str)
     params = parser.parse_args()
 
     return params
