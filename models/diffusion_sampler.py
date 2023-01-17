@@ -2,21 +2,22 @@
 import numpy as np
 import torch, os
 import matplotlib.pyplot as plt
-from frameworks.ddpm_template import DDPMDiffusion
+from models.ddpm import DDPM
 from models.ddpm import gather
+from utils.profile import profile
 
 
 class DDPMSampler:
     def __init__(
         self,
-        diffusion_process: DDPMDiffusion,
+        ddpm: DDPM,
         sample_channels: int,
         sample_size: tuple,
         device: str,
         checkpoint_dir: str,
     ):
         self.device = device
-        self.diffusion_process = diffusion_process
+        self.ddpm = ddpm
         self.sample_channels = sample_channels
         self.sample_size = sample_size
         # self.checkpoint_dir = checkpoint_dir
@@ -26,11 +27,11 @@ class DDPMSampler:
         else:
             self.experiment_dir = os.getcwd()
 
-        self.n_steps = diffusion_process.diffusion_steps  # number of diffusion steps
-        self.noise_predictor = diffusion_process.noise_predictor  # denoising model
-        self.beta = diffusion_process.ddpm.betas
-        self.alpha = diffusion_process.ddpm.alphas
-        self.alpha_bar = diffusion_process.ddpm.alpha_bar
+        self.n_steps = ddpm.diffusion_steps  # number of diffusion steps
+        self.noise_predictor = ddpm.eps_nn  # denoising model
+        self.beta = ddpm.betas
+        self.alpha = ddpm.alphas
+        self.alpha_bar = ddpm.alpha_bar
         alphabar_t_minus_1 = torch.cat(
             [self.alpha_bar.new_ones((1,)), self.alpha_bar[:-1]]
         )  # tensor filled with ones and with shape defined by layout
@@ -58,7 +59,7 @@ class DDPMSampler:
         # plt.title(title)
         # plt.show()
         plt.imsave(f"{self.experiment_dir}/{title}.jpg", np.squeeze(img))
-
+    @torch.no_grad()
     def sample(self, n_samples: int = 16):
         xt = torch.randn(
             [n_samples, self.sample_channels, self.sample_size[0], self.sample_size[1]],
@@ -67,15 +68,15 @@ class DDPMSampler:
         x0 = self._sample_x0(xt, self.n_steps)
         for i in range(n_samples):
             self.show_image(x0[i], f"generated_image_{i}")
-
+            
     def _sample_x0(self, xt: torch.Tensor, n_steps: int):
         n_samples = xt.shape[0]
         for t_ in range(n_steps):
-            t = n_steps - t_ - 1
-            xt = self.diffusion_process.ddpm.sample_p_t_reverse_process(
+            t = self.n_steps - t_ - 1
+            xt = self.ddpm.sample_p_t_reverse_process(
                 xt, xt.new_full((n_samples,), t, dtype=torch.long
             ))  # sample from reverse processs
-            return xt
+        return xt
 
     def p_x0(self, xt: torch.Tensor, t: torch.Tensor, eps: torch.tensor):
         """
