@@ -166,7 +166,7 @@ class DatasetRetriever:
 
             self.dataset = ModelsDataset(
                 root_dir=f"{previous_dir}/datasets/model_dataset_MNIST/",
-                model_labels_path=f"{previous_dir}/datasets/model_dataset_MNIST/model_dataset_test.json",
+                model_labels_path=f"{previous_dir}/datasets/model_dataset_MNIST/model_dataset.json",
                 base_model=MLP(784, 10),
                 manipulations=nn_to_2d_tensor,
                 padding=True,
