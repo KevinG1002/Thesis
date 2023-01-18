@@ -5,9 +5,13 @@ from torch.utils.data import Dataset, DataLoader
 from torch.optim import Adam
 import matplotlib.pyplot as plt
 from datasets.model_dataset import ModelsDataset
+from datasets.get_dataset import DatasetRetriever
 from models.ddpm import DDPM
 from utils.exp_logging import checkpoint
 from models.unet import DDPMUNet
+from utils.profile import profile
+from utils.weight_transformations import nn_to_2d_tensor, tensor_to_nn
+from frameworks.sgd_template import SupervisedLearning
 
 
 class DDPMDiffusion:
@@ -79,8 +83,10 @@ class DDPMDiffusion:
         self.noise_predictor = DDPMUNet(
             sample_channels, num_channels, channel_multipliers, is_attention, n_blocks
         ).to(self.device)
-        self.ddpm = DDPM(self.noise_predictor, self.diffusion_steps, self.device)
-        self.optimizer = Adam(self.noise_predictor.parameters(), self.learning_rate)
+        self.ddpm = DDPM(self.noise_predictor,
+                         self.diffusion_steps, self.device)
+        self.optimizer = Adam(
+            self.noise_predictor.parameters(), self.learning_rate)
         self.dataloader = DataLoader(
             self.dataset, self.batch_size, shuffle=True, pin_memory=True
         )
@@ -106,8 +112,8 @@ class DDPMDiffusion:
             mbatch_y = mbatch_y.to(self.device)
             self.optimizer.zero_grad()
             self.loss = self.ddpm.l_simple(mbatch_x)
-            if idx % 50 == 0:
-                print("Epoch %d : Diffusion Loss %.3f" % (epoch_idx, self.loss))
+            # if idx % 50 == 0:
+            print("Epoch %d : Diffusion Loss %.3f" % (epoch_idx, self.loss))
             self.loss.backward()
             self.optimizer.step()
 
@@ -143,7 +149,8 @@ class DDPMDiffusion:
                 self.epochs,
                 self.loss,
             )
-            checkpoint_path = os.path.join(self.checkpoint_dir_path, checkpoint_name)
+            checkpoint_path = os.path.join(
+                self.checkpoint_dir_path, checkpoint_name)
             checkpoint(
                 checkpoint_path,
                 self.epochs,
@@ -176,14 +183,43 @@ class DDPMDiffusion:
             )
         # sample1, sample2, sample3, sample4, sample5 = torch.chunk(x_t, 5, 0)
         # x = x.cpu().numpy()
-        restored_samples = []
-        for i in range(self.num_gen_samples):
-            # sample = x[i]
-            if isinstance(self.dataset, ModelsDataset):
-                restored_samples.append(self.dataset.restore_original_tensor(x[i]))
-            else:
+        # print(x.size())
+        # restored_samples = []
+        # for i in range(self.num_gen_samples):
+        #     if isinstance(self.dataset, ModelsDataset):
+        #         samples = torch.chunk(x, self.num_gen_samples, 0)
+        #         restored_samples.append(
+        #             self.dataset.restore_original_tensor(samples[i]))
+        #     else:
+        #         plt.imsave(
+        #             f"{self.experiment_dir}/{title}_gen_sample_{i}.png",
+        #             np.squeeze(x[i].cpu().numpy()),
+            # )
+        # return restored_samples
+        if isinstance(self.dataset, ModelsDataset):
+            self.eval_gen_model(x)
+            samples = torch.chunk(x, self.num_gen_samples, 0)
+            return [self.dataset.restore_original_tensor(samples[i]) for i in range(self.num_gen_samples)]
+        else:
+            for i in range(self.num_gen_samples):
                 plt.imsave(
                     f"{self.experiment_dir}/{title}_gen_sample_{i}.png",
                     np.squeeze(x[i].cpu().numpy()),
                 )
-        return restored_samples
+            return
+
+    def eval_gen_model(self, gen_models: torch.Tensor):
+        samples = torch.chunk(gen_models, self.num_gen_samples, 0)
+        assert isinstance(
+            self.dataset, ModelsDataset), "Can't evaluate generated model because it's not a tensor that can be structured as an MLP."
+        gen_model_test_dataset = DatasetRetriever(
+            self.dataset.original_dataset)
+        _, test_set = gen_model_test_dataset()
+        for i in range(self.num_gen_samples):
+            nn_tensor = self.dataset.restore_original_tensor(samples[i])
+            nn = tensor_to_nn(nn_tensor, self.dataset.base_model)
+            print("\nEvaluating DDPM Generated Model %d on %s" %
+                  (i+1, self.dataset.original_dataset))
+            mnist_process = SupervisedLearning(
+                nn, test_set=test_set, device=self.device)
+            mnist_process.test()

@@ -33,6 +33,7 @@ class CONFIG:
         n_samples_gen: int = 5,
         resize_images: bool = True,
         log_training: bool = False,
+        checkpoint_path: str = None,
         checkpoint_every: int = None,
     ):
         self.n_diffusion_steps = n_diffusion_steps
@@ -57,7 +58,7 @@ class CONFIG:
         self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_DDPM_{self.dataset_name}_e_{self.epochs}_{self.n_diffusion_steps}_steps"
         self.log_training = log_training
         # Checkpointing attributes; if log_training is False, path stay at None and checkpoint every does't change.
-        self.checkpoint_path = None
+        self.checkpoint_path = checkpoint_path
         self.checkpoint_every = checkpoint_every
         self.experiment_config = {
             k: v
@@ -115,21 +116,15 @@ def run(cfg: CONFIG):
     if cfg.log_training:
         cfg.logger.save_results(train_metrics)
 
-    diffusion_process.sample("after_training")
+    # checkpoint = torch.load("/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-16_19-01-15_DDPM_MNIST_e_100_1000_steps/checkpoints/ddpm_fully_trained_e_100_loss_0.011.pt")
+    # diffusion_process.noise_predictor.load_state_dict(checkpoint["model_state_dict"])
+    # diffusion_process.sample("new_checkpoint_sample")
 
-    diffusion_sampler = DDPMSampler(
-        diffusion_process,
-        sample_channels=cfg.sample_channels,
-        sample_size=cfg.sample_size,
-        device=cfg.device,
-        checkpoint_dir=cfg.checkpoint_path,
-    )
-    diffusion_sampler.sample()
     ## DIFFUSION MODEL ON MLP DATASET ##
     # checkpoint = torch.load("/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-12_11-23-54_DDPM_model_dataset_MNIST_e_1_150_steps/checkpoints/ddpm_fully_trained_e_1_loss_1.000.pt")
     # diffusion_process.checkpoint_dir_path = "/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-12_11-23-54_DDPM_model_dataset_MNIST_e_1_150_steps/checkpoints/"
     # diffusion_process.noise_predictor.load_state_dict(checkpoint["unet_state_dict"])
-    # gen_samples = diffusion_process.sample("after_training")
+    gen_samples = diffusion_process.sample("after_training")
 
     # gen_model_test_dataset = DatasetRetriever(cfg.dataset.original_dataset)
     # _, test_set = gen_model_test_dataset()
@@ -181,11 +176,13 @@ def main():
         epochs=experiment_params.num_epochs,
         learning_rate=2e-5,
         batch_size=experiment_params.batch_size,
-        sample_size=(32, 32),
+        sample_size=(None, None),
         log_training=True,
         checkpoint_every=experiment_params.save_every,
-        n_blocks=2,
+        n_blocks=1,
         is_attention=[False, False, False, True],
+        resize_images=False,
+        checkpoint_path=1,
     )
     run(cfg)
 

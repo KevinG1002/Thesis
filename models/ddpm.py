@@ -1,10 +1,12 @@
-### Script based on: https://nn.labml.ai/diffusion/ddpm/index.html; Full credits to them.
+# Script based on: https://nn.labml.ai/diffusion/ddpm/index.html; Full credits to them.
 
 import torch
 from typing import Tuple, Optional
 import torch.nn.functional as F
 import torch.utils.data
 import torch.nn as nn
+
+from utils.profile import profile
 
 
 def gather(consts: torch.Tensor, t: torch.Tensor):
