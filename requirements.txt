@@ -4,3 +4,4 @@ torch
 torchmetrics
 torchvision
 psutil
+torch-geometric
