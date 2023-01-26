@@ -107,13 +107,15 @@ class DDPMDiffusion:
             self.experiment_dir = os.getcwd()
 
     def train_epoch(self, epoch_idx):
+        freq = 10 if isinstance(self.dataset, ModelsDataset) else 100
         for idx, (mbatch_x, mbatch_y) in enumerate(self.dataloader):
             mbatch_x = mbatch_x.to(self.device)
             mbatch_y = mbatch_y.to(self.device)
             self.optimizer.zero_grad()
             self.loss = self.ddpm.l_simple(mbatch_x)
-            # if idx % 50 == 0:
-            print("Epoch %d : Diffusion Loss %.3f" % (epoch_idx, self.loss))
+            if idx % freq == 0:
+                print("Epoch %d : Diffusion Loss %.3f" %
+                      (epoch_idx, self.loss))
             self.loss.backward()
             self.optimizer.step()
 
