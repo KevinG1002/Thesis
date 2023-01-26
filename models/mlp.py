@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
+from torchsummary import summary
 
 
 class MLP(nn.Module):
@@ -39,3 +40,13 @@ class SimpleMLP(nn.Module):
         x = F.relu(self.fc_2(x))
         out = F.softmax(x)
         return out
+
+
+def test():
+    mlp = MLP()
+    print(mlp)
+    print(summary(model=mlp, input_size=(784,)))
+
+
+if __name__ == "__main__":
+    test()

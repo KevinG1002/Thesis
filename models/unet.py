@@ -4,9 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-class UNet(nn.Module):
-    pass
+from utils.profile import profile
 
 
 class TimeEmbedding(nn.Module):
@@ -35,6 +33,8 @@ class TimeEmbedding(nn.Module):
         embedding = torch.exp(torch.arange(half_dim, device=t.device) * -embedding)
         embedding = t[:, None] * embedding[None, :]
         embedding = torch.cat((embedding.sin(), embedding.cos()), dim=1)
+
+        # Transform with embedding
         embedding = self.activation(self.fc1(embedding))
         embedding = self.fc2(embedding)
         return embedding
@@ -117,7 +117,7 @@ class AttentionBlock(nn.Module):
         if not d_k:
             d_k = n_channels
 
-        # self.norm = nn.GroupNorm(n_groups, n_channels)  # Normalization layer
+        self.norm = nn.GroupNorm(n_groups, n_channels)  # Normalization layer
         self.projection = nn.Linear(
             n_channels, n_heads * d_k * 3
         )  # Projection for query, key and values
@@ -135,8 +135,9 @@ class AttentionBlock(nn.Module):
             - x: input sample, has shape [batch_size, n_channels, height, width]
             - t: input diffusion steps, has shape [batch_size, time_channels]
         """
-        if not t:
-            _ = t
+        # if not t:
+        #     _ = t
+        _ = t
 
         batch_size, n_channels, height, width = x.shape
         x = x.view(batch_size, n_channels, -1).permute(
@@ -332,7 +333,7 @@ class DDPMUNet(nn.Module):
         n_channels: int = 64,
         ch_dims: "list[int]" = [1, 2, 2, 4],
         is_attention: "list[bool]" = [False, False, True, True],
-        n_blocks: int = 1,
+        n_blocks: int = 2,
     ):
         """
         UNet used to predict addednoise in diffusion process. This UNet is used in combination with the DDPM.
@@ -379,7 +380,10 @@ class DDPMUNet(nn.Module):
 
         self.down = nn.ModuleList(down)
 
-        self.middle = MiddleBlock(out_channels, n_channels * 4)
+        self.middle = MiddleBlock(
+            out_channels,
+            n_channels * 4,
+        )
 
         up = []
         in_channels = out_channels
@@ -414,7 +418,7 @@ class DDPMUNet(nn.Module):
 
         # for metadata
         self.name = self._get_name()
-
+        
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         t = self.time_embedding(t)
         x = self.sample_projection(x)

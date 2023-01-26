@@ -34,7 +34,7 @@ class ModelsDataset(Dataset):
     def __getitem__(self, index):
         # model_path = os.path.join(self.model_paths[index])
         loaded_model = self.load_model(self.model_paths[index])
-        label = self.model_labels[index]
+        label = self.model_labels[index]["test_acc"]
         if self.manipulations:
             manipulated_model = self.manipulations(loaded_model)
             if self.padding:
@@ -88,13 +88,13 @@ class ModelsDataset(Dataset):
 
 def main():
     dataset = ModelsDataset(
-        root_dir="/Users/kevingolan/Documents/Coding_Assignments/Thesis/datasets/model_dataset_MNIST/model_dataset.json",
-        model_labels_path="/Users/kevingolan/Documents/Coding_Assignments/Thesis/datasets/model_dataset_MNIST/model_dataset.json",
+        root_dir="/scratch_net/bmicdl03/kgolan/Thesis/datasets/model_dataset_MNIST/",
+        model_labels_path="/scratch_net/bmicdl03/kgolan/Thesis/datasets/model_dataset_MNIST/model_dataset_test.json",
         base_model=MLP(784, 10),
         manipulations=nn_to_2d_tensor,
         padding=True,
     )
-
+    print(dataset.tensor_sample_dim[1:])
     train_dataloader = DataLoader(dataset, 2, True)
     for mbatch_x, mbatch_y in train_dataloader:
         original = dataset.restore_original_tensor(mbatch_x)

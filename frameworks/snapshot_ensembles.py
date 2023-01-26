@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import CyclicLR, CosineAnnealingLR
 from torch.nn import CrossEntropyLoss
-from utils.logging import checkpoint
+from utils.exp_logging import checkpoint
 
 
 class SnapshotEnsemble:

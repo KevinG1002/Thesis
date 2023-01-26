@@ -16,7 +16,7 @@ from distributions.laplace import LaPlaceDistribution
 from distributions.uniform import UniformDistribution
 from datasets.get_dataset import DatasetRetriever
 from utils.params import argument_parser
-from utils.logging import Logger
+from utils.exp_logging import Logger
 
 EXPERIMENTAL_RESULTS_PATH = "experimental_results"
 

@@ -72,7 +72,7 @@ def run(cfg: GENCONFIG):
 
     dataset_dicts = {}
 
-    models = [MLP().to(cfg.device) for _ in range(cfg.num_runs)]
+    models = [MLP() for _ in range(cfg.num_runs)]
     optimizers = [
         Adam(models[i].parameters(), lr=cfg.learning_rate) for i in range(cfg.num_runs)
     ]
@@ -83,17 +83,17 @@ def run(cfg: GENCONFIG):
         # entry = {}
         model_path = f"{cfg.target_dir}models/mlp_mnist_model_{i}.pth"
         training_process = SupervisedLearning(
-            model=models[i],
+            model=models[i].to(cfg.device),
             train_set=cfg.train_set,
             test_set=cfg.test_set,
             val_set=None,
             num_classes=10,
             epochs=cfg.epochs,
             batch_size=cfg.batch_size,
-            optim=optimizers[i],
             criterion=CrossEntropyLoss(),
             device=cfg.device,
         )
+        training_process.optimizer = optimizers[i]
         training_process.train()
         performance_dict = training_process.test()
         trained_model = copy.deepcopy(training_process.model)

@@ -4,6 +4,7 @@ from ast import literal_eval
 import copy
 import torch.nn as nn
 
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 def nn_to_2d_tensor(nn: nn.Module) -> torch.Tensor:
     concatenated_weights = torch.concat([param.flatten() for param in nn.parameters()])
@@ -18,6 +19,8 @@ def tensor_to_nn(x: torch.Tensor, base_nn: nn.Module) -> nn.Module:
     Restores a neural network with its hierarchy, layers and bias vectors from a torch tensor.
     This function populates a state_dict with the re-structured weights.
     """
+    x = x.to(DEVICE)
+    base_nn = base_nn.to(DEVICE)
     new_nn = copy.deepcopy(base_nn)
     new_state_dict = dict.fromkeys(new_nn.state_dict())
     assert (
@@ -32,7 +35,7 @@ def tensor_to_nn(x: torch.Tensor, base_nn: nn.Module) -> nn.Module:
         structured_layer = torch.gather(
             x_flattened,
             -1,
-            torch.arange(curr_idx, curr_idx + curr_layer_len).type(torch.int64),
+            torch.arange(curr_idx, curr_idx + curr_layer_len).type(torch.int64).to(DEVICE),
         ).view(base_nn.state_dict()[layer].size())
         curr_idx += curr_layer_len
         new_state_dict[layer] = structured_layer
