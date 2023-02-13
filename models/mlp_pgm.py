@@ -29,17 +29,19 @@ def mlp_pgm_final(
     weight_layer_dataset: list[torch.Tensor] = None,
     bias_layer_dataset: list[torch.Tensor] = None,
 ):
-    dataset_len = weight_layer_dataset[0].size()[0] if weight_layer_dataset else 1
+    dataset_len = weight_layer_dataset[0].size(
+    )[0] if weight_layer_dataset else 1
+    subsample_size = 2 if weight_layer_dataset else None
     layer_structure = (784, 128, 64, 10)
     weight_matrix_dims = [
         (layer_structure[i], layer_structure[i + 1])
         for i in range(len(layer_structure) - 1)
     ]
-    bias_dims = [(layer_structure[k], 1) for k in range(1, len(layer_structure))]
+    bias_dims = [(layer_structure[k], 1)
+                 for k in range(1, len(layer_structure))]
     # print(weight_matrix_dims)
-    x = torch.randn(dataset_len, 784, 1)
+    x = torch.randn(subsample_size if subsample_size else dataset_len, 784, 1)
     layer_idx = 0
-    activations = []
     for _ in range(len(weight_matrix_dims)):  # iterate over number of weight matrices
         upper_bound = (1 / layer_structure[layer_idx]) ** (1 / 2) * torch.ones(
             layer_structure[layer_idx]
@@ -54,46 +56,57 @@ def mlp_pgm_final(
         b_lower_bound = -b_upper_bound
         # print(b_lower_bound[0])
 
-        with pyro.plate(f"Layer_{layer_idx+1}", dataset_len, dim=-3):
-
+        with pyro.plate(f"Layer_{layer_idx+1}", dataset_len, subsample_size, dim=-3, use_cuda=True) as ind:
+            print(ind.device)
+            ind = ind.cpu()
             # print(layer_idx)
             b = pyro.sample(
                 f"b_{layer_idx+1}",
                 dist.Uniform(b_lower_bound, b_upper_bound),
-                obs=bias_layer_dataset[layer_idx] if bias_layer_dataset else None,
+                obs=bias_layer_dataset[layer_idx][ind] if bias_layer_dataset else None,
             )  # Sample b vector from uniform
             # w = torch.empty(weight_matrix_dims[layer_idx]) # create placeholder tensor for weights so that we can concatenate independent variational parameters to do weight multiplication
             # for j in range(weight_matrix_dims[layer_idx][1])
             with pyro.plate(
-                f"Layer_Weights_{layer_idx+1}", weight_matrix_dims[layer_idx][1], dim=-2
-            ) as j:
+                f"Layer_Weights_{layer_idx+1}", weight_matrix_dims[layer_idx][1], dim=-2, use_cuda=True
+            ):
                 # print(weight_layer_dataset[layer_idx].size())
+                d = dist.Uniform(
+                    lower_bound, upper_bound)
                 w = pyro.sample(
                     f"w_{layer_idx+1}",
-                    dist.Uniform(lower_bound, upper_bound),
-                    obs=weight_layer_dataset[layer_idx]
+                    d,
+                    obs=weight_layer_dataset[layer_idx][ind.cpu()].permute(
+                        0, 2, 1)
                     if weight_layer_dataset
                     else None,
                 )
 
                 if weight_layer_dataset:
-                    # print("Layer %d, Bias %s, Weight %s, Input %s" % (layer_idx+1, b.size(), w.size(), x.size()))
-                    act = torch.relu(torch.matmul(w.mT, x) + b.unsqueeze(-1))
+                    print("Layer %d, Bias %s, Weight %s, Input %s" %
+                          (layer_idx+1, b.size(), w.size(), x.size()))
+                    act = torch.relu(torch.matmul(
+                        w, x).squeeze() + b)  # .unsqueeze(-1))
                 else:
                     b = b.permute(0, 2, 1).squeeze(-1)
-                    # print("Layer %d, Bias %s, Weight %s, Input %s" % (layer_idx+1, b.size(), w.size(), x.size()))
+                    print("Layer %d, Bias %s, Weight %s, Input %s" %
+                          (layer_idx+1, b.size(), w.size(), x.size()))
                     # print(torch.matmul(x.squeeze(), w.mT).size())
-                    act = torch.relu(torch.matmul(x.squeeze(), w.mT) + b).squeeze()
+                    act = torch.relu(torch.matmul(
+                        w, x).squeeze() + b)  # .squeeze()
+                    # print("Weight_size", w.size())
 
-                # print("Layer %d, Bias %s, Weight %s, Act %s" % (layer_idx+1, b.size(), w.size(), act.size()))
+                print("Layer %d, Bias %s, Weight %s, Act %s" %
+                      (layer_idx+1, b.size(), w.size(), act.size()))
 
                 # activations.append(act)
 
                 # cov = torch.eye(act.size(1))
 
-        with pyro.plate(f"Activations_{layer_idx+1}", 1, dim=-3):
+        with pyro.plate(f"Activations_{layer_idx+1}", 1, dim=-3, use_cuda=True):
             cov = torch.stack(
-                [torch.eye(bias_dims[layer_idx][0]) for _ in range(act.size()[0])],
+                [torch.eye(bias_dims[layer_idx][0])
+                 for _ in range(act.size()[0])],
                 dim=0,
             )
             h_dist = dist.MultivariateNormal(act.squeeze(), cov)
@@ -129,25 +142,38 @@ def layer_wise_dataset(nn_dataset: list[list]):
         weight_dataset.append(weights)
         bias_dataset.append(biases)
 
-    layerwise_weight_datasets = tensor_dataset_layer_wise(len(weights), weight_dataset)
-    layerwise_bias_datasets = tensor_dataset_layer_wise(len(weights), bias_dataset)
+    layerwise_weight_datasets = tensor_dataset_layer_wise(
+        len(weights), weight_dataset)
+    layerwise_bias_datasets = tensor_dataset_layer_wise(
+        len(weights), bias_dataset)
     return layerwise_weight_datasets, layerwise_bias_datasets
 
 
 def test():
-    nn_list = [MLP() for _ in range(2)]
-    layerwise_weight_datasets, layerwise_bias_datasets = layer_wise_dataset(nn_list)
+    nn_list = [MLP() for _ in range(5)]
+    layerwise_weight_datasets, layerwise_bias_datasets = layer_wise_dataset(
+        nn_list)
     print([x.size() for x in layerwise_weight_datasets])
     print([x.size() for x in layerwise_bias_datasets])
     pyro.render_model(
         mlp_pgm_final,
-        model_args=(layerwise_weight_datasets, layerwise_bias_datasets),
-        render_params=True,
+        model_args=(None, None),
+        render_params=True
     )
 
 
 def run_inference():
     pyro.clear_param_store()
+    nn_list = [MLP() for _ in range(5)]
+    layerwise_weight_datasets, layerwise_bias_datasets = layer_wise_dataset(
+        nn_list)
+    print([x.size() for x in layerwise_weight_datasets])
+    print([x.size() for x in layerwise_bias_datasets])
+
+    # trace = poutine.trace(mlp_pgm_final).get_trace()
+    # trace.compute_log_prob()  # optional, but allows printing of log_prob shapes
+    # print(trace.format_shapes())
+    # exit(0)
     mlp_pgm_guide = AutoMultivariateNormal(mlp_pgm_final)
     adam = pyro.optim.Adam({"lr": 0.02})  # Consider decreasing learning rate.
     elbo = Trace_ELBO()
@@ -155,7 +181,7 @@ def run_inference():
 
     losses = []
     for step in range(2000):  # Consider running for more steps.
-        loss = svi.step()
+        loss = svi.step(layerwise_weight_datasets, layerwise_bias_datasets)
         losses.append(loss)
         print(loss)
         if step % 10 == 0:
@@ -168,5 +194,5 @@ def run_inference():
 
 
 if __name__ == "__main__":
-    # test()
-    run_inference()
+    test()
+    # run_inference()
