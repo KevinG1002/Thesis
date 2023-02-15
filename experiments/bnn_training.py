@@ -11,9 +11,9 @@ import torch.nn as nn
 from torch.distributions import Uniform
 from frameworks.vi_template import VITemplate
 from models.bnn import SimpleBNN
-from distributions.gaussians import *
-from distributions.laplace import LaPlaceDistribution
-from distributions.uniform import UniformDistribution
+from thesis_distributions.gaussians import *
+from thesis_distributions.laplace import LaPlaceDistribution
+from thesis_distributions.uniform import UniformDistribution
 from datasets.get_dataset import DatasetRetriever
 from utils.params import argument_parser
 from utils.exp_logging import Logger
