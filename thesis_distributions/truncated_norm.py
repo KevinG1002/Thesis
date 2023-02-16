@@ -4,6 +4,7 @@ from numbers import Number
 
 import torch
 from torch.distributions import Distribution, constraints
+from pyro.distributions.torch_distribution import TorchDistributionMixin
 from torch.distributions.utils import broadcast_all
 
 CONST_SQRT_2 = math.sqrt(2)
@@ -119,8 +120,22 @@ class TruncatedStandardNormal(Distribution):
         )
         return self.icdf(p)
 
+    def expand(self, batch_shape, _instance=None):
+        new_shape = torch.Size(
+            torch.broadcast_shapes(batch_shape, self.batch_shape, self.event_shape)
+        )
+        a = self.a.expand(new_shape)
+        b = self.b.expand(new_shape)
+        if _instance is None:
+            return type(self)(a=a, b=b)
+        else:
+            _instance.a = a
+            _instance.b = b
+            super(TruncatedNormal, _instance).__init__(a, b)
+            return _instance
 
-class TruncatedNormal(TruncatedStandardNormal):
+
+class TruncatedNormal(TruncatedStandardNormal, TorchDistributionMixin):
     """
     Truncated Normal distribution
     https://people.sc.fsu.edu/~jburkardt/presentations/truncated_normal.pdf
@@ -155,3 +170,25 @@ class TruncatedNormal(TruncatedStandardNormal):
             super(TruncatedNormal, self).log_prob(self._to_std_rv(value))
             - self._log_scale
         )
+
+    def expand(self, batch_shape, _instance=None):
+        new_shape = torch.Size(
+            torch.broadcast_shapes(batch_shape, self.batch_shape, self.event_shape)
+        )
+        loc = self.loc.expand(new_shape)
+        scale = self.scale.expand(new_shape)
+        a = self.a.expand(new_shape)
+        b = self.b.expand(new_shape)
+        if _instance is None:
+            return type(self)(loc=loc, scale=scale, a=a, b=b)
+        else:
+            _instance.loc = loc
+            _instance.scale = scale
+            _instance.a = a
+            _instance.b = b
+            super(TruncatedNormal, _instance).__init__(a, b)
+            return _instance
+
+
+def test():
+    dist = TruncatedNormal(1, 0.5, 1e-5, 10)
