@@ -35,6 +35,7 @@ class MLP_PGM(object):
         num_iterations: int,
         base_model: nn.Module,
         dataset_len: int,
+        device: str,
         loss_function: pyro.infer = None,
     ):
         self.learning_rate = learning_rate
@@ -42,9 +43,9 @@ class MLP_PGM(object):
         self.num_iterations = num_iterations
         self.base_model = base_model
         self.dataset_len = dataset_len
+        self.device = device
         self.loss_function = loss_function if loss_function else Trace_ELBO
         self.optim = DCTAdam({"lr": self.learning_rate, "betas": (0.93, 0.99)})
-
         self.layer_structure = (
             param.size()[0] for param in nn.parameters() if len(param.size()) == 1
         )
@@ -181,7 +182,7 @@ class MLP_PGM(object):
         svi = pyro.infer.SVI(self.pgm_model, self.guide, self.optim, self.loss_function)
 
         losses = []
-        for step in range(2000):  # Consider running for more steps.
+        for step in range(self.num_iterations):  # Consider running for more steps.
             loss = svi.step(layerwise_weight_dataset, layerwise_bias_dataset)
             losses.append(loss)
             print(loss)
