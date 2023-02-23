@@ -3,6 +3,7 @@ import torch
 from typing import Callable
 import numpy as np
 import pyro.distributions as dist
+from functools import partial
 import pyro.distributions.constraints as constraints
 from pyro.distributions.transforms import NeuralAutoregressive, AffineCoupling
 from pyro.infer import SVI, Trace_ELBO, MCMC, TraceGraph_ELBO, Predictive
@@ -11,6 +12,8 @@ from pyro.infer.autoguide import (
     AutoNormal,
     AutoIAFNormal,
     AutoMultivariateNormal,
+    AutoLowRankMultivariateNormal,
+    AutoGaussian,
 )
 from pyro.optim import DCTAdam
 import torch.nn as nn
@@ -45,7 +48,9 @@ class MLP_PGM(object):
         self.base_model = base_model
         self.dataset_len = dataset_len
         self.device = device
-        self.loss_function = loss_function if loss_function else Trace_ELBO()
+        self.loss_function = (
+            loss_function if loss_function else Trace_ELBO(num_particles=10)
+        )
         self.optim = pyro.optim.Adam(
             {"lr": self.learning_rate, "betas": (0.93, 0.99)}
         )  # DCTAdam({"lr": self.learning_rate, "betas": (0.93, 0.99)})
@@ -63,24 +68,34 @@ class MLP_PGM(object):
         self.bias_dims = [
             (self.layer_structure[k], 1) for k in range(1, len(self.layer_structure))
         ]
+        self.init_fn = partial(
+            dist.MultivariateNormal,
+        )
+
         self.guide: Callable = (
             self.pgm_guide()
             if self.pgm_guide()
-            else AutoMultivariateNormal(self.pgm_model)
+            else AutoLowRankMultivariateNormal(self.pgm_model)
         )
 
-        self.trace = poutine.trace(self.pgm_model).get_trace()
+        # self.trace = poutine.trace(self.pgm_model).get_trace(self.observed_data)
 
     def pgm_model(
         self,
+        data,
         layerwise_weight_dataset: list[torch.Tensor] = None,
         layerwise_bias_dataset: list[torch.Tensor] = None,
     ):
+        # x = (
+        #     x
+        #     if x
+        #     else torch.randn(
+        #         self.subsample_size if self.subsample_size else self.dataset_len, 784, 1
+        #     )
+        # )
         # self.subsample_size = self.batch_size if layerwise_weight_dataset else None
-        x = torch.randn(
-            self.subsample_size if self.subsample_size else self.dataset_len, 784, 1
-        )
-
+        assert data.size()[0] >= self.subsample_size
+        self.observed_data = data
         layer_idx = 0
         for _ in range(
             len(self.weight_matrix_dims)
@@ -113,6 +128,8 @@ class MLP_PGM(object):
             ) as ind:
                 ind = ind.cpu()
                 # print(layer_idx)
+                if layer_idx == 0:
+                    x = data[ind]
                 b_dist = dist.Uniform(b_lower_bound, b_upper_bound, validate_args=True)
 
                 b = pyro.sample(
@@ -240,6 +257,7 @@ class MLP_PGM(object):
 
     def svi_train(
         self,
+        x: torch.Tensor,
         layerwise_weight_dataset: list[torch.Tensor] = None,
         layerwise_bias_dataset: list[torch.Tensor] = None,
     ):
@@ -248,7 +266,7 @@ class MLP_PGM(object):
 
         losses = []
         for step in range(self.num_iterations):  # Consider running for more steps.
-            loss = svi.step(layerwise_weight_dataset, layerwise_bias_dataset)
+            loss = svi.step(x, layerwise_weight_dataset, layerwise_bias_dataset)
             losses.append(loss)
             if step % 100 == 0:
                 print("Elbo loss: {}".format(loss))
@@ -265,14 +283,14 @@ class MLP_PGM(object):
             samples = self.guide(None, None)
         return samples
 
-    def sample_weights(self, num_samples) -> dict:
+    def sample_weights(self, data, num_samples) -> dict:
         predictive = pyro.infer.Predictive(
             self.pgm_model,
             guide=self.guide,
             num_samples=num_samples,
             return_sites=self.observed,
         )
-        posterior_samples = predictive(None, None)
+        posterior_samples = predictive(data, None, None)
         posterior_samples = {
             k: v.squeeze().flatten(0, 1).data for k, v in posterior_samples.items()
         }  # to deal with subsample batch size
@@ -290,7 +308,7 @@ class MLP_PGM(object):
         """
         To do
         """
-        trace = poutine.trace(self.pgm_model).get_trace()
+        trace = poutine.trace(self.pgm_model).get_trace(self.observed_data)
         sample_names = [
             j
             for j in [

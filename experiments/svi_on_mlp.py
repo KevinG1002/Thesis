@@ -2,6 +2,8 @@ import torch
 import pyro
 import seaborn as sns
 import torch.nn as nn
+import numpy as np
+from torch.utils.data import DataLoader, Subset
 from models.mlp import MLP
 from datasets.pgm_dataset import PGMDataset
 from datasets.get_dataset import DatasetRetriever
@@ -75,9 +77,19 @@ def run_experiment(cfg: CONFIG):
         cfg.dataset_len,
         cfg.device,
     )
-    pgm_process.svi_train(cfg.weight_dataset, cfg.bias_dataset)
+    mnist_examples = DatasetRetriever("MNIST", False)
+    train_set, _ = mnist_examples()
+    sample_idxs = torch.randint(0, len(train_set), (cfg.dataset_len,))
+    # example_samples = train_set.data[sample_idxs].flatten(1).unsqueeze(-1)
+    subsamples = Subset(train_set, sample_idxs)
+    dataloader = DataLoader(subsamples, batch_size=len(subsamples))
+    example_samples = next(iter(dataloader))[0].flatten(1).unsqueeze(-1)
+    # print(example_samples.size())
+    # print(example_samples[0])
+
+    pgm_process.svi_train(example_samples, cfg.weight_dataset, cfg.bias_dataset)
     latents = pgm_process.sample_latents(cfg.num_latent_samples)
-    weight_samples = pgm_process.sample_weights(cfg.num_weight_samples)
+    weight_samples = pgm_process.sample_weights(example_samples, cfg.num_weight_samples)
     weight_dicts = [
         {k: v[i] for k, v in weight_samples.items()}
         for i in range(cfg.num_weight_samples)
@@ -105,8 +117,8 @@ if __name__ == "__main__":
     weights, biases = dataset_obj()
 
     cfg = CONFIG(
-        learning_rate=1e-3,
-        batch_size=5,
+        learning_rate=5e-3,
+        batch_size=2,
         num_iterations=1000,
         base_model=MLP(),
         weight_dataset=weights,
