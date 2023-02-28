@@ -90,20 +90,27 @@ def run():
     nn = MLP()
     print(get_layer_widths(nn))
     G = mlp_tensor_to_graph(nn, *mlp_layers)
-    print(G.edges[975, 985]["weight"])
+    L_G: nx.Graph = nx.line_graph(G, nx.DiGraph())
+    print(L_G.number_of_edges(), L_G.number_of_nodes())
+
+    for node in L_G.nodes():
+        orig_u, orig_v = node
+        weight = G[orig_u][orig_v]["weight"]
+        L_G.nodes[node]["weight"] = weight.item()
     pyg_G = networkx_to_pygeometric(G)
-    print(pyg_G["edge_attr"].size())
-    return pyg_G
+    return L_G
 
 
 def plot_mlp_graph(G: nx.Graph):
-    pos = nx.multipartite_layout(G, subset_key="layer")
-    plt.figure(figsize=(8, 8))
+    # pos = nx.multipartite_layout(G, subset_key="subset")
+    pos = nx.spring_layout(G)
+    plt.figure(figsize=(16, 16))
     nx.draw_networkx_nodes(G, pos, node_size=0.5)
     nx.draw_networkx_edges(G, pos, width=0.001)
     plt.tight_layout()
-    plt.show()
+    plt.savefig("Line Graph view")
 
 
 if __name__ == "__main__":
-    run()
+    g = run()
+    plot_mlp_graph(g)
