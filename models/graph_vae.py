@@ -27,7 +27,7 @@ class GVAELoss(nn.Module):
         mu: torch.Tensor,
         reduction_fn: str = "sum",
     ):
-        loss = F.cross_entropy(
+        loss = F.binary_cross_entropy_with_logits(
             predictions, ground_truth, reduction=reduction_fn
         )  # log-likelihood
 
