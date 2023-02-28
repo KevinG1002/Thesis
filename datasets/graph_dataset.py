@@ -76,11 +76,17 @@ class GraphDataset(Dataset):
     def processed_file_names(self):
         if not os.path.exists(self.processed_dir):
             os.mkdir(self.processed_dir)
-        return [file for file in os.listdir(self.processed_dir) if file.endswith(".pt")]
+        return [
+            file for file in os.listdir(self.processed_dir) if file.startswith("data_")
+        ]
 
     @property
     def labels(self):
         return self._model_labels
+
+    @property
+    def default_edge_index(self):
+        return self.get(0).edge_index
 
 
 def run():
@@ -90,11 +96,7 @@ def run():
         root="../datasets/model_dataset_MNIST",
         pre_transform=transforms,
     )
-    graph = gd[0]
-    print(graph.x.size())
-    print(graph.num_edges)
-    print(graph.num_nodes)
-    print(graph.edge_index.shape)
+    graph = gd[1]
 
 
 if __name__ == "__main__":
