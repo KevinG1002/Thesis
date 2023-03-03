@@ -3,12 +3,13 @@ from typing import Callable
 import torch.nn as nn
 import torch_geometric as PyG
 import torch.nn.functional as F
-from torch_geometric.data import Dataset
+from torch_geometric.data import Dataset, Batch
 from torch.optim import Adam
 from frameworks.sgd_template import SupervisedLearning
 from utils.exp_logging import checkpoint
 from models.graph_vae import GraphVAE, Encoder, Decoder, GVAELoss
-from torch_geometric.loader import DataLoader
+from torch_geometric.loader import DataLoader, NeighborSampler, NeighborLoader
+from samplers.graph_sampler import GVAE_Sampler
 
 import os
 
@@ -27,6 +28,7 @@ class GVAE_Training:
         num_samples: int = 10,
         log_training: bool = False,
         checkpoint_every: int = None,
+        subgraph_sampling: bool = True,
         device: str = "cpu",
     ):
 
@@ -43,10 +45,13 @@ class GVAE_Training:
         )
         self.log_training = log_training
         self.num_samples = num_samples
-
         self.graph_edge_index = (
             self.dataset.default_edge_index
         )  # in our problem, all graphs have the exact same edge_index since they all have the same connections but different weights (node attributes here)
+        print(self.graph_edge_index.size())
+        if subgraph_sampling:
+            self.subgraph_sampling = subgraph_sampling  # GVAE_Sampler("uniform", 2.5, self.graph_edge_index, 100)
+
         self.device = device
         self.checkpoint_every = checkpoint_every
 
@@ -55,7 +60,14 @@ class GVAE_Training:
 
     def train(self) -> dict:
         self.model.train(True)
-        self.train_dataloader = self._instantiate_train_dataloader()
+        if not self.subgraph_sampling:
+            self.train_dataloader = self._instantiate_train_dataloader()
+        else:
+            self.train_dataloader = NeighborLoader(
+                Batch.from_data_list(self.dataset),
+                [100, 100, 100],
+                batch_size=10000,
+            )
         print("\n\n")
         for epoch in range(self.epochs):
             print("\nStart of training epoch %d." % (epoch + 1))
@@ -102,12 +114,26 @@ class GVAE_Training:
 
     def train_epoch(self, epoch_idx: int):
         train_loss = 0.0
+        edge_index = self.graph_edge_index
+        num_iterations = 100
+        # for _ in range(num_iterations):
         for idx, mbatch_x in enumerate(self.train_dataloader):
+            # mbatch_x = next(iter(self.train_dataloader))
             self.optimizer.zero_grad()
+            print(mbatch_x)
+            print(mbatch_x.edge_index.size())
+            print(mbatch_x.x.size())
+            print(mbatch_x.x)
+            print(
+                mbatch_x.x == mbatch_x.edge_weight
+            )  # need to apply transform that removes edge weight
             mbatch_x = mbatch_x.to(self.device)
             x = mbatch_x.x
+            edge_index = mbatch_x.edge_index
             num_nodes = mbatch_x.num_nodes
-            recon_z, mu, log_var = self.model(x, self.graph_edge_index, None)
+            # if self.subgraph_sampling:
+            # x, edge_index = self.sampler(x, edge_index)
+            recon_z, mu, log_var = self.model(x, edge_index, None)
 
             loss = self.criterion(
                 x,
@@ -116,11 +142,13 @@ class GVAE_Training:
                 log_var,
                 mu,
             )
-            if idx % 100 == 0:
-                print("ELBO loss:", loss)
+            # if idx % 100 == 0:
+            # print("ELBO loss:", loss.item())
             loss.backward()
             train_loss += loss
             self.optimizer.step()
+            print("ELBO loss:", loss.item())
+
         avg_train_loss = train_loss.item() / len(self.train_dataloader)
 
         return {
