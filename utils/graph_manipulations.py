@@ -16,6 +16,9 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def weight_tensor_to_graph(model: torch.nn.Module):
+    """
+    Takes nn.Module weights & biases and returns PyGeometric Graph representation of these weights.
+    """
     layer_widths = get_layer_widths(model)
     G = mlp_tensor_to_graph(model, *layer_widths)
     return networkx_to_pygeometric(G)
@@ -23,10 +26,14 @@ def weight_tensor_to_graph(model: torch.nn.Module):
 
 # @profile
 def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
+    """
+    From a nn.Module takes the weights & biases and returns a weighted NetworkX graph.
+    """
     # model = MLP(784, 10)
     number_of_params = 0
     for layer in model.parameters():
         number_of_params += layer.numel()
+    print(number_of_params)
     extents = nx.utils.pairwise(
         itertools.accumulate((0,) + subset_sizes)
     )  # creates simple markov chain graph of accumated sum of nodes in graph: (2, 786) -> (786, 786+128=914) -> (912, 912 + 64 = 976) -> (976, 976 + 10=986)
@@ -65,9 +72,11 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
     # print(layer_biases[0])
     G = nx.DiGraph()
     for (i, layer) in enumerate(layers):
-        G.add_nodes_from(layer, layer=i)
+        G.add_nodes_from(layer)
         if i < len(layers) - 1:
-            G.add_node((layer[-1] + 1,), layer=i)
+            G.add_node(
+                (layer[-1] + 1,)
+            )  # Temporarily removed "layer" attribute when adding node.
             bias_node_idx.append(layer[-1] + 1)
             # Add MLP Weights
     # print(G.number_of_nodes())
@@ -108,7 +117,7 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
         ]
         G.add_weighted_edges_from(weighted_edges)
 
-    print(G.edges(784, "weight"), len(G.edges(784)))
+    # print(G.edges(784, "weight"), len(G.edges(784)))
     # print(G)
 
     # exit(0)
@@ -125,7 +134,9 @@ def torch_geometric_to_networkx(G_Line_Graph: Data):
     """
     Converts torch_geometric data to NetworkX graph
     """
-    pass
+    g = to_networkx(G_Line_Graph, to_undirected=False, edge_attrs=["weight"])
+    print(g)
+    return g
 
 
 def networkx_to_torch_nn(G: nx.DiGraph, base_nn: nn.Module):
@@ -135,6 +146,7 @@ def networkx_to_torch_nn(G: nx.DiGraph, base_nn: nn.Module):
     # Check if line graph
     layer_widths = get_layer_widths(base_nn)
     ref_G = mlp_tensor_to_graph(base_nn, *layer_widths)
+    print(G.number_of_nodes(), ref_G.number_of_nodes())
     if ref_G.number_of_nodes() != G.number_of_nodes():
         G = nx.inverse_line_graph(G)
     number_of_params = 0
@@ -144,10 +156,9 @@ def networkx_to_torch_nn(G: nx.DiGraph, base_nn: nn.Module):
     base_nn = base_nn.to(DEVICE)
     new_nn = copy.deepcopy(base_nn)
     new_state_dict = dict.fromkeys(new_nn.state_dict())
-    num_nodes = G.number_of_nodes()
-    nodes_list = [i for i in range(num_nodes)]
-    sorted_edges = sorted(G.edges(data=True), key=lambda x: list(G.nodes()).index(x[0]))
-    weights = torch.tensor([d["weight"] for u, v, d in sorted_edges])
+    # num_nodes = G.number_of_nodes()
+    # weights = torch.tensor([d["weight"] for u, v, d in sorted_edges])
+    weights = torch.tensor([G[u][v]["weight"] for u, v in G.edges()])
     # print("Bias in Graph", G.edges(784, "weight"))
     # print("Bias in State Dict", new_nn.state_dict()["fc_1.bias"])
     # print("Next Layer Weights in State Dict", new_nn.state_dict()["fc_2.weight"])
@@ -180,12 +191,12 @@ def networkx_to_torch_nn(G: nx.DiGraph, base_nn: nn.Module):
     # print("Layer Dims", layer_dims)
     curr_idx = 0
     bias_start_idx = sum(weight_dims)
-    print(bias_start_idx)
+    # print(bias_start_idx)
     for idx, layer in enumerate(base_nn.state_dict().keys()):
         if "weight" in layer:
             curr_layer_len = layer_dims[idx // 2]
-            print("Curr Layer", layer)
-            print("Param Range", curr_idx, curr_idx + curr_layer_len)
+            # print("Curr Layer", layer)
+            # print("Param Range", curr_idx, curr_idx + curr_layer_len)
             # print(curr_layer_len)
             structured_layer = torch.gather(
                 weights,
@@ -199,8 +210,8 @@ def networkx_to_torch_nn(G: nx.DiGraph, base_nn: nn.Module):
         else:
             cur_bias_len = bias_dims[(idx - 1) // 2]
 
-            print("Curr Bias Layer", layer)
-            print("Param Range", bias_start_idx, bias_start_idx + cur_bias_len)
+            # print("Curr Bias Layer", layer)
+            # print("Param Range", bias_start_idx, bias_start_idx + cur_bias_len)
             structured_layer = torch.gather(
                 weights,
                 -1,
@@ -227,12 +238,18 @@ def networkx_to_torch_nn(G: nx.DiGraph, base_nn: nn.Module):
 
 # @profile
 def networkx_to_pygeometric(G: nx.Graph) -> Data:
+    """
+    Converts NetworkX graph to a PyGeometric graph (Data type).
+    """
     pyg_graph = from_networkx(G, group_edge_attrs=["weight"])
     pyg_graph.edge_weight = pyg_graph.edge_attr
     return pyg_graph
 
 
-def get_layer_widths(model: nn.Module):
+def get_layer_widths(model: nn.Module) -> list:
+    """
+    Given a nn.Module, returns a list of its layer widths.
+    """
     layer_widths = []
     input_size = None
 
@@ -251,19 +268,23 @@ def get_layer_widths(model: nn.Module):
     return layer_widths
 
 
+def pygeometric_to_nn(G: Data, base_model: nn.Module) -> nn.Module:
+    nx_G = torch_geometric_to_networkx(G)
+    return networkx_to_torch_nn(nx_G, base_model)
+
+
 def run():
     mlp_layers = [784, 128, 64, 10]
     nn = MLP()
-    print(get_layer_widths(nn))
-    print(nn.state_dict()["fc_1.bias"])
+    # print(get_layer_widths(nn))
     G = mlp_tensor_to_graph(nn, *mlp_layers)
     restored_nn = networkx_to_torch_nn(G, copy.deepcopy(nn))
-    print(
-        [
-            (param1 == param2).all()
-            for param1, param2 in zip(nn.parameters(), restored_nn.parameters())
-        ]
-    )
+    # print(
+    #     [
+    #         (param1 == param2).all()
+    #         for param1, param2 in zip(nn.parameters(), restored_nn.parameters())
+    #     ]
+    # )
     # L_G: nx.Graph = nx.line_graph(G, nx.DiGraph())
     # print(L_G.number_of_edges(), L_G.number_of_nodes())
 
