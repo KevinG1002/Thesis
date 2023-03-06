@@ -12,8 +12,7 @@ from pyro.infer.autoguide import (
     AutoNormal,
     AutoIAFNormal,
     AutoMultivariateNormal,
-    AutoLowRankMultivariateNormal,
-    AutoGaussian,
+    AutoLaplaceApproximation
 )
 from pyro.optim import DCTAdam
 import torch.nn as nn
@@ -51,9 +50,11 @@ class MLP_PGM(object):
         self.loss_function = (
             loss_function if loss_function else Trace_ELBO(num_particles=10)
         )
+        # self.optim = DCTAdam(
+        #     {"lr": self.learning_rate, "betas": (0.97, 0.999)})
         self.optim = pyro.optim.Adam(
             {"lr": self.learning_rate, "betas": (0.93, 0.99)}
-        )  # DCTAdam({"lr": self.learning_rate, "betas": (0.93, 0.99)})
+        )
 
         self.layer_structure = [
             param.size()[1]
@@ -75,7 +76,7 @@ class MLP_PGM(object):
         self.guide: Callable = (
             self.pgm_guide()
             if self.pgm_guide()
-            else AutoLowRankMultivariateNormal(self.pgm_model)
+            else AutoLaplaceApproximation(self.pgm_model)
         )
 
         # self.trace = poutine.trace(self.pgm_model).get_trace(self.observed_data)
@@ -94,8 +95,10 @@ class MLP_PGM(object):
         #     )
         # )
         # self.subsample_size = self.batch_size if layerwise_weight_dataset else None
-        assert data.size()[0] >= self.subsample_size
-        self.observed_data = data
+        x = x if x else torch.randn(
+            self.subsample_size if self.subsample_size else self.dataset_len, 784, 1
+        )
+
         layer_idx = 0
         for _ in range(
             len(self.weight_matrix_dims)
@@ -126,11 +129,11 @@ class MLP_PGM(object):
                 dim=-3,
                 device=self.device,
             ) as ind:
-                ind = ind.cpu()
+                ind = ind.to("cpu")
+                # print(ind)
                 # print(layer_idx)
-                if layer_idx == 0:
-                    x = data[ind]
-                b_dist = dist.Uniform(b_lower_bound, b_upper_bound, validate_args=True)
+                b_dist = dist.Uniform(
+                    b_lower_bound, b_upper_bound, validate_args=True)
 
                 b = pyro.sample(
                     f"b_{layer_idx+1}",
@@ -148,7 +151,8 @@ class MLP_PGM(object):
                     device=self.device,
                 ):
                     # print(weight_layer_dataset[layer_idx].size())
-                    d = dist.Uniform(lower_bound, upper_bound, validate_args=True)
+                    d = dist.Uniform(lower_bound, upper_bound,
+                                     validate_args=True)
                     w = pyro.sample(
                         f"w_{layer_idx+1}",
                         d,
@@ -178,7 +182,8 @@ class MLP_PGM(object):
                         #     % (layer_idx + 1, b.size(), w.size(), x.size())
                         # )
                         # print(torch.matmul(x.squeeze(), w.mT).size())
-                        act = torch.relu(torch.matmul(w, x).squeeze() + b)  # .squeeze()
+                        act = torch.relu(torch.matmul(
+                            w, x).squeeze() + b)  # .squeeze()
                         # print("Weight_size", w.size())
 
                         # print("Backward")
@@ -228,7 +233,8 @@ class MLP_PGM(object):
                     mu = torch.ones(act.size(1)) * act.mean(0)
                     sigma = torch.ones(act.size(1)) * act.var()
                     # print("Activation", act)
-                    assert (act.squeeze() >= 0).all(), "Some activations are negative"
+                    assert (act.squeeze() >= 0).all(
+                    ), "Some activations are negative"
                     # h_dist = TruncatedNormal(1e-7, act.squeeze() + 1e-9, a, b)
                     # h_loc = pyro.param(
                     #     f"h_loc_{layer_idx+1}", act, constraint=constraints.real
@@ -262,11 +268,13 @@ class MLP_PGM(object):
         layerwise_bias_dataset: list[torch.Tensor] = None,
     ):
         pyro.clear_param_store()
-        svi = pyro.infer.SVI(self.pgm_model, self.guide, self.optim, self.loss_function)
+        svi = pyro.infer.SVI(self.pgm_model, self.guide,
+                             self.optim, self.loss_function)
 
         losses = []
-        for step in range(self.num_iterations):  # Consider running for more steps.
-            loss = svi.step(x, layerwise_weight_dataset, layerwise_bias_dataset)
+        # Consider running for more steps.
+        for step in range(self.num_iterations):
+            loss = svi.step(layerwise_weight_dataset, layerwise_bias_dataset)
             losses.append(loss)
             if step % 100 == 0:
                 print("Elbo loss: {}".format(loss))

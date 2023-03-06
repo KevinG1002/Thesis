@@ -69,6 +69,7 @@ class CONFIG:
 
 
 def run_experiment(cfg: CONFIG):
+    print(cfg.device)
     pgm_process = MLP_PGM(
         cfg.learning_rate,
         cfg.batch_size,
@@ -87,9 +88,11 @@ def run_experiment(cfg: CONFIG):
     # print(example_samples.size())
     # print(example_samples[0])
 
-    pgm_process.svi_train(example_samples, cfg.weight_dataset, cfg.bias_dataset)
+    pgm_process.svi_train(
+        example_samples, cfg.weight_dataset, cfg.bias_dataset)
     latents = pgm_process.sample_latents(cfg.num_latent_samples)
-    weight_samples = pgm_process.sample_weights(example_samples, cfg.num_weight_samples)
+    weight_samples = pgm_process.sample_weights(
+        example_samples, cfg.num_weight_samples)
     weight_dicts = [
         {k: v[i] for k, v in weight_samples.items()}
         for i in range(cfg.num_weight_samples)
@@ -104,7 +107,8 @@ def run_experiment(cfg: CONFIG):
     # print("\nTesting Generated Sample 1:\n")
     sample_weight_accs = []
     for i in range(cfg.num_weight_samples):
-        test_process = SupervisedLearning(nn_s[i], test_set=test_set, device=cfg.device)
+        test_process = SupervisedLearning(
+            nn_s[i], test_set=test_set, device=cfg.device)
         test_metrics = test_process.test()
         sample_weight_accs.append(test_metrics["test_acc"])
 
@@ -112,19 +116,21 @@ def run_experiment(cfg: CONFIG):
 
 
 if __name__ == "__main__":
-    dataset_json_path = "/Users/kevingolan/Documents/Coding_Assignments/Thesis/datasets/model_dataset_MNIST/model_dataset.json"
-    dataset_obj = PGMDataset(model_json_path=dataset_json_path, base_model=MLP())
+    dataset_json_path = "/scratch_net/bmicdl03/kgolan/Thesis/datasets/model_dataset_MNIST/model_dataset.json"
+    dataset_obj = PGMDataset(
+        model_json_path=dataset_json_path, base_model=MLP())
     weights, biases = dataset_obj()
+    # print(weights[0].size(), weights[0])
 
     cfg = CONFIG(
-        learning_rate=5e-3,
-        batch_size=2,
-        num_iterations=1000,
+        learning_rate=2e-3,
+        batch_size=100,
+        num_iterations=10000,
         base_model=MLP(),
         weight_dataset=weights,
         bias_dataset=biases,
-        num_latent_samples=10,
-        num_weight_samples=10,
+        num_latent_samples=40,
+        num_weight_samples=40,
         log_training=False,
     )
     run_experiment(cfg)
