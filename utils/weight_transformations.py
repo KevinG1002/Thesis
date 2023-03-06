@@ -3,8 +3,10 @@ import torch.nn.functional as F
 from ast import literal_eval
 import copy
 import torch.nn as nn
+from models.mlp import SmallMLP
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 def nn_to_2d_tensor(nn: nn.Module) -> torch.Tensor:
     concatenated_weights = torch.concat([param.flatten() for param in nn.parameters()])
@@ -35,7 +37,9 @@ def tensor_to_nn(x: torch.Tensor, base_nn: nn.Module) -> nn.Module:
         structured_layer = torch.gather(
             x_flattened,
             -1,
-            torch.arange(curr_idx, curr_idx + curr_layer_len).type(torch.int64).to(DEVICE),
+            torch.arange(curr_idx, curr_idx + curr_layer_len)
+            .type(torch.int64)
+            .to(DEVICE),
         ).view(base_nn.state_dict()[layer].size())
         curr_idx += curr_layer_len
         new_state_dict[layer] = structured_layer
@@ -155,3 +159,16 @@ def unpad(x, pad):
     if pad[0] + pad[1] > 0:
         x = x[:, :, :, pad[0] : -pad[1]]
     return x
+
+
+def test():
+    numel_params = 0
+    model = SmallMLP()
+    for param in model.parameters():
+        numel_params += param.numel()
+
+    print(width_and_height_algo(numel_params))
+
+
+if __name__ == "__main__":
+    test()
