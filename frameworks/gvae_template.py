@@ -3,13 +3,17 @@ from typing import Callable
 import torch.nn as nn
 import torch_geometric as PyG
 import torch.nn.functional as F
-from torch_geometric.data import Dataset, Batch
+from torch_geometric.data import Dataset, Batch, Data
 from torch.optim import Adam
 from frameworks.sgd_template import SupervisedLearning
 from utils.exp_logging import checkpoint
 from models.graph_vae import GraphVAE, Encoder, Decoder, GVAELoss
 from torch_geometric.loader import DataLoader, NeighborSampler, NeighborLoader
 from samplers.graph_sampler import GVAE_Sampler
+from utils.graph_manipulations import pygeometric_to_nn
+from datasets.get_dataset import DatasetRetriever
+from torch_scatter import scatter
+import copy
 
 import os
 
@@ -28,7 +32,7 @@ class GVAE_Training:
         num_samples: int = 10,
         log_training: bool = False,
         checkpoint_every: int = None,
-        subgraph_sampling: bool = True,
+        subgraph_sampling: bool = False,
         device: str = "cpu",
     ):
 
@@ -49,11 +53,15 @@ class GVAE_Training:
             self.dataset.default_edge_index
         )  # in our problem, all graphs have the exact same edge_index since they all have the same connections but different weights (node attributes here)
         print(self.graph_edge_index.size())
-        if subgraph_sampling:
-            self.subgraph_sampling = subgraph_sampling  # GVAE_Sampler("uniform", 2.5, self.graph_edge_index, 100)
+
+        self.subgraph_sampling = subgraph_sampling  # GVAE_Sampler("uniform", 2.5, self.graph_edge_index, 100)
 
         self.device = device
         self.checkpoint_every = checkpoint_every
+
+        ## For the evaluation of sampled graphs.
+        gen_model_test_dataset = DatasetRetriever("MNIST")
+        _, self.test_set = gen_model_test_dataset()
 
     def _instantiate_train_dataloader(self):
         return DataLoader(self.dataset, self.batch_size, shuffle=True)
@@ -122,49 +130,66 @@ class GVAE_Training:
             self.optimizer.zero_grad()
             print(mbatch_x)
             print(mbatch_x.edge_index.size())
-            print(mbatch_x.x.size())
-            print(mbatch_x.x)
-            print(
-                mbatch_x.x == mbatch_x.edge_weight
-            )  # need to apply transform that removes edge weight
+            # print(
+            #     mbatch_x.x == mbatch_x.edge_weight
+            # )  # need to apply transform that removes edge weight
             mbatch_x = mbatch_x.to(self.device)
-            x = mbatch_x.x
+            x = mbatch_x.edge_attr
             edge_index = mbatch_x.edge_index
+            edge_weight = mbatch_x.edge_weight
             num_nodes = mbatch_x.num_nodes
             # if self.subgraph_sampling:
             # x, edge_index = self.sampler(x, edge_index)
-            recon_z, mu, log_var = self.model(x, edge_index, None)
+            recon_z, self.mu, self.log_var = self.model(x, edge_index, None)
 
             loss = self.criterion(
                 x,
                 recon_z,
                 num_nodes,
-                log_var,
-                mu,
+                self.log_var,
+                self.mu,
             )
-            # if idx % 100 == 0:
-            # print("ELBO loss:", loss.item())
+            if idx % 100 == 0:
+                print("ELBO loss:", loss.item())
+                self.eval_epoch(epoch_idx)
             loss.backward()
             train_loss += loss
             self.optimizer.step()
-            print("ELBO loss:", loss.item())
+            # print("ELBO loss:", loss.item())
 
         avg_train_loss = train_loss.item() / len(self.train_dataloader)
-
+        self.eval_epoch(epoch_idx)
         return {
             "train_loss": avg_train_loss,
         }
 
-    def sample(self):
-        mu = self.model.mu
-        log_var = self.model.log_var
+    @torch.no_grad()
+    def sample_graphs(self) -> list:
+        # mu = self.model.mu
+        # log_var = self.model.log_var
         gen_graphs = []
+        self.model.eval()
         for _ in range(self.num_samples):
-            z = self.model.reparametrize(mu, log_var)
-            gen_graphs.append(
-                self.model.decoder(
-                    z,
-                    self.graph_edge_index,
-                )
+            z = self.model.reparametrize(self.mu, self.log_var)
+            g = self.model.decode(z, self.graph_edge_index, None).view(3, -1)
+            print(g)
+            new_g = Data(
+                edge_index=self.graph_edge_index, edge_attr=g.mean(0), weight=g.mean(0)
             )
+            gen_graphs.append(new_g)
         return gen_graphs
+
+    @torch.no_grad()
+    def eval_samples(self, generated_graphs):
+        for idx, g in enumerate(generated_graphs):
+            nn = pygeometric_to_nn(copy.deepcopy(g), self.base_model)
+            test_process = SupervisedLearning(
+                nn, test_set=self.test_set, device=self.device
+            )
+            print("\nTesting Generated Sample %d:\n" % (idx + 1))
+            test_process.test()
+
+    def eval_epoch(self, idx):
+        print("\nEvaluating graph samples -- Epoch %d" % idx)
+        sampled_graphs = self.sample_graphs()
+        self.eval_samples(sampled_graphs)
