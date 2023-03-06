@@ -23,15 +23,15 @@ class MLP(nn.Module):
         return out
 
 
-class SimpleMLP(nn.Module):
+class SmallMLP(nn.Module):
     """
     Basic MLP class for experiments. 3 layers including input and output layers.
     """
 
     def __init__(self, input_dim: int = 784, num_classes: int = 10):
         super().__init__()
-        self.fc_1 = nn.Linear(input_dim, 100)
-        self.fc_2 = nn.Linear(100, num_classes)
+        self.fc_1 = nn.Linear(input_dim, 50)
+        self.fc_2 = nn.Linear(50, num_classes)
 
         self.name = self._get_name()
 

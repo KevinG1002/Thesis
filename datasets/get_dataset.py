@@ -20,10 +20,12 @@ def restore_from_unit_radius(tensor: torch.Tensor):
     """
     return (tensor + 1) / 2 * 255.0
 
+
 class UnitRadTransform(object):
     """
     Callable class to implement [-1, 1] scaling on unit-scaled transformation (i.e. assumes images are already scaled between [0,1])
     """
+
     def __call__(self, tensor):
         return 2 * tensor - 1
 
@@ -48,6 +50,8 @@ class DatasetRetriever:
             "resize": transforms.Resize(size=resize_dim),
             "unit_radius_norm": UnitRadTransform(),
         }
+        self.train_set = None
+        self.test_set = None
 
     def __call__(self) -> "tuple[Dataset, Dataset]":
         if self.dataset_name == "MNIST":
