@@ -2,7 +2,6 @@ import torch
 import json
 import os
 from typing import Callable
-import torch_geometric as PyG
 from torch_geometric.data import Dataset
 from torch_geometric.transforms import LineGraph
 import torch_geometric.transforms as T
@@ -90,13 +89,16 @@ class GraphDataset(Dataset):
 
 
 def run():
-    transforms = T.Compose([weight_tensor_to_graph, LineGraph(True)])
+    transforms = T.Compose([weight_tensor_to_graph])  # LineGraph(False)])
     gd = GraphDataset(
         base_model=MLP(),
         root="../datasets/model_dataset_MNIST",
         pre_transform=transforms,
     )
     graph = gd[1]
+    print(graph.edge_weight)
+    print(graph.x)
+    print(graph)
 
 
 if __name__ == "__main__":
