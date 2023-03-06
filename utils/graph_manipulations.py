@@ -12,6 +12,7 @@ from models.mlp import MLP
 import matplotlib.pyplot as plt
 
 torch.manual_seed(0)
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def weight_tensor_to_graph(model: torch.nn.Module):
@@ -23,10 +24,9 @@ def weight_tensor_to_graph(model: torch.nn.Module):
 # @profile
 def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
     # model = MLP(784, 10)
-    number_of_weights = 0
-    print(subset_sizes)
+    number_of_params = 0
     for layer in model.parameters():
-        number_of_weights += layer.numel()
+        number_of_params += layer.numel()
     extents = nx.utils.pairwise(
         itertools.accumulate((0,) + subset_sizes)
     )  # creates simple markov chain graph of accumated sum of nodes in graph: (2, 786) -> (786, 786+128=914) -> (912, 912 + 64 = 976) -> (976, 976 + 10=986)
@@ -38,10 +38,10 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
     #     for start, end in extents
     # ]  # list of layer ranges (range objects)
     unpacked_extents = [(start, end) for start, end in extents]
-    print(unpacked_extents)
+    # print(unpacked_extents)
     layers = []
     bias_node_idx = []
-    print(len(unpacked_extents))
+    # print(len(unpacked_extents))
     prev_end = 0
     delta = 0
     for i in range(len(unpacked_extents)):
@@ -56,13 +56,13 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
             new_end = new_start + delta
             layers.append(range(new_start, new_end))
             prev_end = new_end
-    print(layers)
+    # print(layers)
     # exit(0)
     layer_params = [
         weight_m for weight_m in model.parameters() if len(weight_m.size()) > 1
     ]
     layer_biases = [param for param in model.parameters() if len(param.size()) < 2]
-    print(layer_biases[0])
+    # print(layer_biases[0])
     G = nx.DiGraph()
     for (i, layer) in enumerate(layers):
         G.add_nodes_from(layer, layer=i)
@@ -70,11 +70,10 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
             G.add_node((layer[-1] + 1,), layer=i)
             bias_node_idx.append(layer[-1] + 1)
             # Add MLP Weights
-    print(G.number_of_nodes())
-    print("Bias node idx:", bias_node_idx)
+    # print(G.number_of_nodes())
+    # print("Bias node idx:", bias_node_idx)
     for idx, (layer1, layer2) in enumerate(nx.utils.pairwise(layers)):
         list_of_edges = [edge_tup for edge_tup in itertools.product(layer1, layer2)]
-        print(len(list_of_edges))
         weighted_edges = [
             weighted_edge
             for weighted_edge in [
@@ -91,8 +90,8 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
     for idx in range(len(bias_node_idx)):
         bias_tup = (bias_node_idx[idx],)
         target_range = layers[idx + 1]
-        print(bias_tup)
-        print(target_range)
+        # print(bias_tup)
+        # print(target_range)
         bias_edges = [
             edge_tup for edge_tup in itertools.product(bias_tup, target_range)
         ]
@@ -110,7 +109,7 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
         G.add_weighted_edges_from(weighted_edges)
 
     print(G.edges(784, "weight"), len(G.edges(784)))
-    print(G)
+    # print(G)
 
     # exit(0)
 
@@ -133,7 +132,97 @@ def networkx_to_torch_nn(G: nx.DiGraph, base_nn: nn.Module):
     """
     Converts NetworkX graph to Pytorch nn.Module for inference on testing set from generated weights.
     """
-    pass
+    # Check if line graph
+    layer_widths = get_layer_widths(base_nn)
+    ref_G = mlp_tensor_to_graph(base_nn, *layer_widths)
+    if ref_G.number_of_nodes() != G.number_of_nodes():
+        G = nx.inverse_line_graph(G)
+    number_of_params = 0
+    for layer in base_nn.parameters():
+        number_of_params += layer.numel()
+    # x = x.to(DEVICE)
+    base_nn = base_nn.to(DEVICE)
+    new_nn = copy.deepcopy(base_nn)
+    new_state_dict = dict.fromkeys(new_nn.state_dict())
+    num_nodes = G.number_of_nodes()
+    nodes_list = [i for i in range(num_nodes)]
+    sorted_edges = sorted(G.edges(data=True), key=lambda x: list(G.nodes()).index(x[0]))
+    weights = torch.tensor([d["weight"] for u, v, d in sorted_edges])
+    # print("Bias in Graph", G.edges(784, "weight"))
+    # print("Bias in State Dict", new_nn.state_dict()["fc_1.bias"])
+    # print("Next Layer Weights in State Dict", new_nn.state_dict()["fc_2.weight"])
+    # print("Assumed Bias in weights", weights[100352:100500])
+    # print((weights[0:100352] == new_nn.state_dict()["fc_1.weight"].mT.flatten()).all())
+    # print(
+    #     (
+    #         weights[0:100352].view(new_nn.state_dict()["fc_1.weight"].mT.size()).mT
+    #         == new_nn.state_dict()["fc_1.weight"]
+    #     ).all()
+    # )
+    assert (
+        len(weights) == number_of_params
+    ), "Missmatch between number of params taken from graph and number of params in nn.Module."
+    weight_dims = [
+        param.flatten().size()[0]
+        for param in base_nn.parameters()
+        if len(param.size()) > 1
+    ]
+    bias_dims = [
+        param.flatten().size()[0]
+        for param in base_nn.parameters()
+        if len(param.size()) < 2
+    ]
+    # print("Weight dims", weight_dims)
+    # print("Bias dims", bias_dims)
+    layer_dims = (
+        weight_dims + bias_dims
+    )  # Concatenate list of bias dims to end of list of weight dims and iterate over indices because of how weighted edges were added to graph. Can probably clean this.
+    # print("Layer Dims", layer_dims)
+    curr_idx = 0
+    bias_start_idx = sum(weight_dims)
+    print(bias_start_idx)
+    for idx, layer in enumerate(base_nn.state_dict().keys()):
+        if "weight" in layer:
+            curr_layer_len = layer_dims[idx // 2]
+            print("Curr Layer", layer)
+            print("Param Range", curr_idx, curr_idx + curr_layer_len)
+            # print(curr_layer_len)
+            structured_layer = torch.gather(
+                weights,
+                -1,
+                torch.arange(curr_idx, curr_idx + curr_layer_len)
+                .type(torch.int64)
+                .to(DEVICE),
+            ).view(base_nn.state_dict()[layer].mT.size())
+            new_state_dict[layer] = structured_layer.mT
+            curr_idx += curr_layer_len
+        else:
+            cur_bias_len = bias_dims[(idx - 1) // 2]
+
+            print("Curr Bias Layer", layer)
+            print("Param Range", bias_start_idx, bias_start_idx + cur_bias_len)
+            structured_layer = torch.gather(
+                weights,
+                -1,
+                torch.arange(bias_start_idx, bias_start_idx + cur_bias_len)
+                .type(torch.int64)
+                .to(DEVICE),
+            ).view(base_nn.state_dict()[layer].size())
+            bias_start_idx += cur_bias_len
+            new_state_dict[layer] = structured_layer
+
+        # # print(structured_layer)
+        # # print(base_nn.state_dict()[layer])
+        # # curr_idx += curr_layer_len
+        # # print(layer)
+        # if "weight" in layer:
+        #     print("Hello")
+
+        # else:
+        #     print("Goodbye")
+        #     new_state_dict[layer] = structured_layer
+    new_nn.load_state_dict(new_state_dict)
+    return new_nn
 
 
 # @profile
@@ -166,8 +255,15 @@ def run():
     mlp_layers = [784, 128, 64, 10]
     nn = MLP()
     print(get_layer_widths(nn))
-    mlp_layers = get_layer_widths(nn)
+    print(nn.state_dict()["fc_1.bias"])
     G = mlp_tensor_to_graph(nn, *mlp_layers)
+    restored_nn = networkx_to_torch_nn(G, copy.deepcopy(nn))
+    print(
+        [
+            (param1 == param2).all()
+            for param1, param2 in zip(nn.parameters(), restored_nn.parameters())
+        ]
+    )
     # L_G: nx.Graph = nx.line_graph(G, nx.DiGraph())
     # print(L_G.number_of_edges(), L_G.number_of_nodes())
 
