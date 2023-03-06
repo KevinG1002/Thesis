@@ -72,7 +72,7 @@ def run(cfg: GENCONFIG):
 
     dataset_dicts = {}
 
-    models = [MLP() for _ in range(cfg.num_runs)]
+    models = [SmallMLP() for _ in range(cfg.num_runs)]
     optimizers = [
         Adam(models[i].parameters(), lr=cfg.learning_rate) for i in range(cfg.num_runs)
     ]
