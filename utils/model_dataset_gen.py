@@ -98,7 +98,7 @@ def run(cfg: GENCONFIG):
         performance_dict = training_process.test()
         trained_model = copy.deepcopy(training_process.model)
         torch.save(trained_model.state_dict(), model_path)
-        with open(f"{cfg.target_dir}/model_dataset.json", "w") as file:
+        with open(f"{cfg.target_dir}/small_model_dataset.json", "w") as file:
             dataset_dicts[model_path] = {
                 k: v.cpu().item() if type(v) == torch.Tensor else v
                 for k, v in performance_dict.items()
@@ -110,7 +110,7 @@ def run(cfg: GENCONFIG):
 def main():
     target_dataset = "MNIST"
     target_directory = (
-        f"/scratch_net/bmicdl03/kgolan/Thesis/datasets/model_dataset_{target_dataset}/"
+        f"/scratch_net/bmicdl03/kgolan/Thesis/datasets/small_model_dataset_{target_dataset}/"
     )
     # target_directory = f"../datasets/model_dataset_{target_dataset}/"
     if not os.path.exists(target_directory):
