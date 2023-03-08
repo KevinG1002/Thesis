@@ -24,6 +24,37 @@ def weight_tensor_to_graph(model: torch.nn.Module):
     return networkx_to_pygeometric(G)
 
 
+def restore_graph_from_line_graph(base_graph: nx.DiGraph, line_graph: nx.DiGraph):
+    line_graph_nodes = line_graph.nodes(data="weight")
+    restored_graph = nx.DiGraph()
+    # print("Number of nodes", len(restored_graph.nodes()))
+    # print("Number of edges", len(restored_graph.edges()))
+
+    for (u, v), weight in line_graph.nodes("weight"):
+        # print("Source Node", u)
+        # print("Destination Node", v)
+        # print("Weight", weight)
+        restored_graph.add_edge(u, v, weight=weight)
+
+    # for weight_a in restored_graph.edges.data("weight"):
+    #     if not (weight_a):
+    #         print(weight_a)
+    # print(restored_graph.edges.data("weight"))
+    restored_sorted_by_first = sorted(
+        restored_graph.edges.data("weight"), key=lambda tup: tup[0]
+    )
+    original_sorted_by_first = sorted(
+        base_graph.edges.data("weight"), key=lambda tup: tup[0]
+    )
+    for weight_a, weight_b in zip(restored_sorted_by_first, original_sorted_by_first):
+        if not (weight_a == weight_b):
+            print(weight_a, weight_b)
+        else:
+            print(weight_a, weight_b)
+
+    return restored_graph
+
+
 # @profile
 def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
     """
@@ -33,7 +64,7 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
     number_of_params = 0
     for layer in model.parameters():
         number_of_params += layer.numel()
-    print(number_of_params)
+    # print(number_of_params)
     extents = nx.utils.pairwise(
         itertools.accumulate((0,) + subset_sizes)
     )  # creates simple markov chain graph of accumated sum of nodes in graph: (2, 786) -> (786, 786+128=914) -> (912, 912 + 64 = 976) -> (976, 976 + 10=986)
@@ -87,7 +118,7 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
             weighted_edge
             for weighted_edge in [
                 (
-                    (a, b, c)
+                    (a, b, c.item())
                     for (a, b), c in zip(
                         list_of_edges, layer_params[idx].mT.flatten().detach()
                     )
@@ -108,7 +139,7 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
             weighted_edge
             for weighted_edge in [
                 (
-                    (a, b, c)
+                    (a, b, c.item())
                     for (a, b), c in zip(
                         bias_edges, layer_biases[idx].flatten().detach()
                     )
@@ -278,7 +309,31 @@ def run():
     nn = MLP()
     # print(get_layer_widths(nn))
     G = mlp_tensor_to_graph(nn, *mlp_layers)
-    restored_nn = networkx_to_torch_nn(G, copy.deepcopy(nn))
+    Line_G: nx.DiGraph = nx.line_graph(G, nx.DiGraph)
+    for node in Line_G.nodes():
+        orig_u, orig_v = node
+        weight = G[orig_u][orig_v]["weight"]
+        Line_G.nodes[node]["weight"] = weight  # .item()
+    recovered_G = restore_graph_from_line_graph(G, Line_G)
+    # print(list(G.edges.data("weight"))[0:50])
+    # a = list(G.edges.data("weight"))
+    # b = list(recovered_G.edges.data("weight"))
+
+    # print()
+    # print(list(recovered_G.edges.data("weight"))[0:50])
+
+    # print(
+    #     [
+    #         x == y
+    #         for x, y in zip(
+    #             list(G.edges.data("weight")), list(recovered_G.edges.data("weight"))
+    #         )
+    #     ]
+    # )
+
+    # print(Line_G.number_of_nodes())
+    # print(list(Line_G.nodes)[-100:None:None])
+    # restored_nn = networkx_to_torch_nn(G, copy.deepcopy(nn))
     # print(
     #     [
     #         (param1 == param2).all()
