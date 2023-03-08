@@ -42,6 +42,42 @@ class SmallMLP(nn.Module):
         return out
 
 
+class RegressMLP(nn.Module):
+    def __init__(self, input_dim: int = 1, output_dim: int = 1):
+        """
+        Mini MLP for Sine Regression. Here, the activation function is ReLU.
+        """
+        super().__init__()
+        self.fc_1 = nn.Linear(input_dim, 10)
+        self.fc_2 = nn.Linear(10, output_dim)
+
+        self.name = self._get_name()
+
+    def forward(self, x):
+        x = F.relu(self.fc_1(x))
+        x = F.relu(self.fc_2(x))
+        out = F.softmax(x)
+        return out
+
+
+class RegressMLPTwo(nn.Module):
+    def __init__(self, input_dim: int = 1, output_dim: int = 1):
+        """
+        Mini MLP for Sine Regression Task. Here, the activation function is Sigmoid.
+        """
+        super().__init__()
+        self.fc_1 = nn.Linear(input_dim, 10)
+        self.fc_2 = nn.Linear(10, output_dim)
+
+        self.name = self._get_name()
+
+    def forward(self, x):
+        x = F.sigmoid(self.fc_1(x))
+        x = F.sigmoid(self.fc_2(x))
+        out = F.softmax(x)
+        return out
+
+
 def test():
     mlp = MLP()
     print(mlp)
