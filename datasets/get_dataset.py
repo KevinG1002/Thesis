@@ -3,6 +3,7 @@ from torchvision.datasets import MNIST, CIFAR10, CelebA
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, random_split
 from datasets.model_dataset import ModelsDataset
+from datasets.sin_dataset import SineDataset
 from utils.weight_transformations import pad_to, unpad, nn_to_2d_tensor
 from models.mlp import MLP
 
@@ -177,5 +178,14 @@ class DatasetRetriever:
                 original_dataset="MNIST",
             )
             return self.dataset, None
+
+        elif self.dataset_name == "SineDataset":
+            dataset = SineDataset(10000, (0, 10))
+            self.train_set, self.test_set = random_split(
+                dataset, [0.85, 0.15], generator=torch.Generator().manual_seed(42)
+            )
+            print(len(self.train_set), len(self.test_set))
+            return self.train_set, self.test_set
+
         else:
             raise "Dataset not available yet"
