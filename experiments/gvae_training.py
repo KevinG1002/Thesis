@@ -92,6 +92,8 @@ def run(cfg: CONFIG):
         cfg.epochs,
         cfg.batch_size,
         cfg.learning_rate,
+        cfg.decay_rate,
+        cfg.num_samples,
     )
     GVAE_training_process.train()
 
@@ -110,10 +112,10 @@ if __name__ == "__main__":
         graph_vae,
         dataset,
         loss_fn,
-        1,
         10,
+        2,
         1e-3,
         0.0,
-        10,
+        2,
     )
     run(cfg)
