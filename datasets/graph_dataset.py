@@ -2,11 +2,15 @@ import torch
 import json
 import os
 from typing import Callable
-from torch_geometric.data import Dataset
+from torch_geometric.data import Dataset, Data
 from torch_geometric.transforms import LineGraph
 import torch_geometric.transforms as T
 from models.mlp import MLP
-from utils.graph_manipulations import weight_tensor_to_graph
+from utils.graph_manipulations import (
+    weight_tensor_to_graph,
+    mlp_tensor_to_line_graph,
+    mlp_tensor_to_graph,
+)
 import torch.nn as nn
 import copy
 
@@ -87,18 +91,30 @@ class GraphDataset(Dataset):
     def default_edge_index(self):
         return self.get(0).edge_index
 
+    @property
+    def default_nx_graph_structure(self):
+        return None
+
+    @property
+    def default_nx_line_graph_structure(self):
+        return None
+
+    @property
+    def default_number_of_nodes(self):
+        return self.get(0).x.size()[0]
+
 
 def run():
-    transforms = T.Compose([weight_tensor_to_graph])  # LineGraph(False)])
+    transforms = T.Compose(
+        [weight_tensor_to_graph]  # LineGraph(True)]
+    )  # LineGraph(False)])
     gd = GraphDataset(
         base_model=MLP(),
         root="../datasets/model_dataset_MNIST",
         pre_transform=transforms,
     )
-    graph = gd[1]
-    print(graph.edge_weight)
+    graph: Data = gd[1]
     print(graph.x)
-    print(graph)
 
 
 if __name__ == "__main__":
