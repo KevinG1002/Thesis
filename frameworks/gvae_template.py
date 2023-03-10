@@ -128,15 +128,13 @@ class GVAE_Training:
         for idx, mbatch_x in enumerate(self.train_dataloader):
             # mbatch_x = next(iter(self.train_dataloader))
             self.optimizer.zero_grad()
-            print(mbatch_x)
-            print(mbatch_x.edge_index.size())
             # print(
             #     mbatch_x.x == mbatch_x.edge_weight
             # )  # need to apply transform that removes edge weight
             mbatch_x = mbatch_x.to(self.device)
-            x = mbatch_x.edge_attr
+            # x = mbatch_x.edge_attr
             edge_index = mbatch_x.edge_index
-            edge_weight = mbatch_x.edge_weight
+            x = mbatch_x.x
             num_nodes = mbatch_x.num_nodes
             # if self.subgraph_sampling:
             # x, edge_index = self.sampler(x, edge_index)
@@ -151,7 +149,7 @@ class GVAE_Training:
             )
             if idx % 100 == 0:
                 print("ELBO loss:", loss.item())
-                self.eval_epoch(epoch_idx)
+                # self.eval_epoch(epoch_idx)
             loss.backward()
             train_loss += loss
             self.optimizer.step()
@@ -170,12 +168,13 @@ class GVAE_Training:
         gen_graphs = []
         self.model.eval()
         for _ in range(self.num_samples):
-            z = self.model.reparametrize(self.mu, self.log_var)
-            g = self.model.decode(z, self.graph_edge_index, None).view(3, -1)
-            print(g)
-            new_g = Data(
-                edge_index=self.graph_edge_index, edge_attr=g.mean(0), weight=g.mean(0)
-            )
+            z = self.model.reparametrize(self.mu, self.log_var) + torch.randn_like(
+                self.log_var
+            ) * torch.exp(self.log_var)
+            g = self.model.decode(z, self.graph_edge_index, None)
+            g = g.view(int(g.size()[0] / self.dataset.default_number_of_nodes), -1)
+            # print(g)
+            new_g = Data(edge_index=self.graph_edge_index, x=g[0], weight=g[0])
             gen_graphs.append(new_g)
         return gen_graphs
 
@@ -187,6 +186,8 @@ class GVAE_Training:
                 nn, test_set=self.test_set, device=self.device
             )
             print("\nTesting Generated Sample %d:\n" % (idx + 1))
+            print("NN id", id(nn))
+
             test_process.test()
 
     def eval_epoch(self, idx):
