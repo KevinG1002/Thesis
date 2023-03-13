@@ -180,11 +180,10 @@ class DatasetRetriever:
             return self.dataset, None
 
         elif self.dataset_name == "SineDataset":
-            dataset = SineDataset(10000, (0, 10))
+            dataset = SineDataset(40000, (0, 10))
             self.train_set, self.test_set = random_split(
                 dataset, [0.85, 0.15], generator=torch.Generator().manual_seed(42)
             )
-            print(len(self.train_set), len(self.test_set))
             return self.train_set, self.test_set
 
         else:
