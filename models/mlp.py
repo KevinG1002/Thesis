@@ -50,14 +50,13 @@ class RegressMLP(nn.Module):
         super().__init__()
         self.fc_1 = nn.Linear(input_dim, 10)
         self.fc_2 = nn.Linear(10, output_dim)
-
         self.name = self._get_name()
 
     def forward(self, x):
-        x = F.relu(self.fc_1(x))
-        x = F.relu(self.fc_2(x))
-        out = F.softmax(x)
-        return out
+        x = F.tanh(self.fc_1(x))
+        x = F.tanh(self.fc_2(x))
+        # out = F.softmax(x)
+        return x
 
 
 class RegressMLPTwo(nn.Module):
