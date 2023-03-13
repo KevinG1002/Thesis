@@ -1,12 +1,16 @@
 import torch, os
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
+import numpy as np
 from torch.nn.modules.loss import _Loss
 import torch.nn.functional as F
 from torch.utils.data import Dataset, random_split, DataLoader
 from torch.optim import Optimizer, SGD, Adam
 from frameworks.basic_template import BasicLearning
 from utils.exp_logging import checkpoint
+from sklearn.metrics import precision_score, f1_score, recall_score, confusion_matrix
+from models.mlp import MLP
+from datasets.get_dataset import DatasetRetriever
 
 
 class SupervisedLearning(BasicLearning):
@@ -187,6 +191,8 @@ class SupervisedLearning(BasicLearning):
         self.test_dataloader = self._instantiate_test_dataloader()
         test_loss = 0.0
         correct_preds = 0
+        predictions = []
+        groundtruth = []
         for mbatch_x, mbatch_y in self.test_dataloader:
             mbatch_x = mbatch_x.to(self.device)
             flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
@@ -196,15 +202,50 @@ class SupervisedLearning(BasicLearning):
             correct_preds += torch.where(
                 torch.argmax(pred_y.cpu(), dim=1) == mbatch_y, 1, 0
             ).sum()
+            predictions += torch.argmax(pred_y.cpu(), dim=1).tolist()
+            groundtruth += mbatch_y.tolist()
 
+        f1_metric = f1_score(groundtruth, predictions, average="weighted")
+        precision = precision_score(groundtruth, predictions, average="weighted")
+        recall = recall_score(groundtruth, predictions, average="weighted")
+        cm = confusion_matrix(groundtruth, predictions)
+        distinct_count = np.bincount(predictions)
         print(
-            "\nTesting Loss: %.3f || Testing Accuracy: %.3f"
+            "\nTesting Loss: %.3f || Testing Accuracy: %.3f || Precision: %.3f || Recall: %.3f || F1 Score: %.3f"
             % (
                 test_loss / len(self.test_dataloader),
                 float(correct_preds / len(self.test_set)),
+                precision,
+                recall,
+                f1_metric,
             )
         )
+        print("\nConfusion Matrix:\n%s" % cm)
+        print("\nDistinct Count: %s" % distinct_count)
         return {
             "test_loss": test_loss.item() / len(self.test_dataloader),
             "test_acc": float(correct_preds / len(self.test_set)),
+            "f1_metric": f1_metric,
+            "recall": recall,
+            "precision": precision,
+            "confusion_matrix": cm,
+            "distinct_count": distinct_count,
         }
+
+
+def test():
+    nn = MLP()
+    nn.load_state_dict(
+        torch.load(
+            "/Users/kevingolan/Documents/Coding_Assignments/Thesis/datasets/model_dataset_MNIST/models/mlp_mnist_model_0.pth",
+            map_location="cpu",
+        )
+    )
+    d = DatasetRetriever("MNIST")
+    _, test_data = d()
+    test_process = SupervisedLearning(nn, test_set=test_data)
+    test_process.test()
+
+
+if __name__ == "__main__":
+    test()
