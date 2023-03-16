@@ -138,7 +138,8 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
     layer_params = [
         weight_m for weight_m in model.parameters() if len(weight_m.size()) > 1
     ]
-    layer_biases = [param for param in model.parameters() if len(param.size()) < 2]
+    layer_biases = [param for param in model.parameters()
+                    if len(param.size()) < 2]
     # print(layer_biases[0])
     G = nx.DiGraph()
     for (i, layer) in enumerate(layers):
@@ -152,7 +153,8 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
     # print(G.number_of_nodes())
     # print("Bias node idx:", bias_node_idx)
     for idx, (layer1, layer2) in enumerate(nx.utils.pairwise(layers)):
-        list_of_edges = [edge_tup for edge_tup in itertools.product(layer1, layer2)]
+        list_of_edges = [
+            edge_tup for edge_tup in itertools.product(layer1, layer2)]
         weighted_edges = [
             weighted_edge
             for weighted_edge in [
@@ -203,10 +205,11 @@ def mlp_tensor_to_graph(model: nn.Module, *subset_sizes):
     #     weight = G[orig_u][orig_v]["weight"]
     #     Line_G.nodes[node]["weight"] = weight
 
-    ## Sort node order and edge connection order.
+    # Sort node order and edge connection order.
     H = nx.DiGraph()
     H.add_nodes_from(sorted(G.nodes(data=True)))
-    H.add_weighted_edges_from(sorted(G.edges.data("weight"), key=lambda tup: tup[0]))
+    H.add_weighted_edges_from(
+        sorted(G.edges.data("weight"), key=lambda tup: tup[0]))
     # return G
     return H
     # return Line_G
@@ -257,7 +260,8 @@ def networkx_to_torch_nn(G: nx.DiGraph, base_nn: nn.Module):
     new_state_dict = dict.fromkeys(new_nn.state_dict())
     # num_nodes = G.number_of_nodes()
     # weights = torch.tensor([d["weight"] for u, v, d in sorted_edges])
-    weights = torch.tensor([G[u][v]["weight"] for u, v in G.edges()])
+    weights = torch.tensor([G[u][v]["weight"]
+                           for u, v in G.edges()]).to(DEVICE)
     # print("Bias in Graph", G.edges(784, "weight"))
     # print("Bias in State Dict", new_nn.state_dict()["fc_1.bias"])
     # print("Next Layer Weights in State Dict", new_nn.state_dict()["fc_2.weight"])
@@ -334,7 +338,7 @@ def networkx_to_torch_nn(G: nx.DiGraph, base_nn: nn.Module):
                 -1,
                 torch.arange(curr_idx, curr_idx + curr_layer_len)
                 .type(torch.int64)
-                .to(DEVICE),
+                .to(DEVICE)
             ).view(base_nn.state_dict()[layer].size())
             curr_idx += curr_layer_len
             new_state_dict[layer] = structured_layer
@@ -344,7 +348,7 @@ def networkx_to_torch_nn(G: nx.DiGraph, base_nn: nn.Module):
                 -1,
                 torch.arange(curr_idx, curr_idx + curr_layer_len)
                 .type(torch.int64)
-                .to(DEVICE),
+                .to(DEVICE)
             ).view(base_nn.state_dict()[layer].mT.size())
             curr_idx += curr_layer_len
             new_state_dict[layer] = structured_layer.mT
