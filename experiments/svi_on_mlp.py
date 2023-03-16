@@ -121,7 +121,8 @@ def run_experiment(cfg: CONFIG):
     print("Ensemble Accuracy:", sum(
         sample_weight_metrics["test_act"]) / cfg.num_weight_samples)
     if cfg.logger:
-        cfg.logger.save_results()
+        cfg.logger.save_results(sample_weight_metrics,
+                                "sampled_model_metrics.json")
 
 
 if __name__ == "__main__":
