@@ -25,18 +25,18 @@ class Logger:
         os.mkdir(self.checkpoint_path)
         return
 
-    def save_results(self, dict_results: dict):
-        if os.path.exists(self.experiment_dir + "/experiment_results.json"):
-            with open(self.experiment_dir + "/experiment_results.json") as curr_json:
+    def save_results(self, dict_results: dict, filename: str):
+        if os.path.exists(self.experiment_dir + "/" + filename):
+            with open(self.experiment_dir + "/" + filename) as curr_json:
                 curr_results = json.loads(curr_json.read())
                 curr_metrics = set(curr_results.keys())
                 new_metrics = set(dict_results.keys()).difference(curr_metrics)
                 for metric in list(new_metrics):
                     curr_results[metric] = dict_results[metric]
-                with open(self.experiment_dir + "/experiment_results.json", "w") as f:
+                with open(self.experiment_dir + "/" + filename, "w") as f:
                     json.dump(curr_results, f)
                     return
-        with open(self.experiment_dir + "/experiment_results.json", "w") as f:
+        with open(self.experiment_dir + "/" + filename, "w") as f:
             json.dump(dict_results, f)
             return
 

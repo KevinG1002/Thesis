@@ -1,12 +1,13 @@
 import torch
 from typing import Callable
+import numpy as np
 import torch.nn as nn
 import torch_geometric as PyG
 import torch.nn.functional as F
 from torch_geometric.data import Dataset, Batch, Data
 from torch.optim import Adam
 from frameworks.sgd_template import SupervisedLearning
-from utils.exp_logging import checkpoint
+from utils.exp_logging import checkpoint, Logger
 from models.graph_vae import GraphVAE, Encoder, Decoder, GVAELoss
 from torch_geometric.loader import DataLoader, NeighborSampler, NeighborLoader
 from samplers.graph_sampler import GVAE_Sampler
@@ -35,6 +36,7 @@ class GVAE_Training:
         checkpoint_every: int = None,
         subgraph_sampling: bool = False,
         device: str = "cpu",
+        logger: Logger = None,
     ):
 
         self.dataset = dataset
@@ -61,6 +63,7 @@ class GVAE_Training:
 
         self.device = device
         self.checkpoint_every = checkpoint_every
+        self.logger = logger
 
         # For the evaluation of sampled graphs.
         gen_model_test_dataset = DatasetRetriever("MNIST")
@@ -82,8 +85,12 @@ class GVAE_Training:
         print("\n\n")
         for epoch in range(self.epochs):
             print("\nStart of training epoch %d." % (epoch + 1))
-            train_ep_metrics = self.train_epoch(epoch + 1)
+            train_ep_metrics, sample_model_metrics = self.train_epoch(
+                epoch + 1)
             print("\nTraining for epoch %d done." % (epoch + 1))
+            if self.logger:
+                self.logger.save_results(
+                    sample_model_metrics, f"sample_model_metrics_epoch_{epoch+1}.json")
             if epoch < 1:
                 train_metrics = {
                     k: [v] for k, v in train_ep_metrics.items()
@@ -107,6 +114,7 @@ class GVAE_Training:
                     self.optimizer.state_dict(),
                     train_metrics["train_loss"],
                 )
+
         if self.checkpoint_every:
             checkpoint_name = "%s_fully_trained_e_%d_loss_%.3f.pt" % (
                 self.model.name,
@@ -163,10 +171,10 @@ class GVAE_Training:
             # print("ELBO loss:", loss.item())
 
         avg_train_loss = train_loss.item() / len(self.train_dataloader)
-        self.eval_epoch(epoch_idx)
+        eval_metrics, eval_avg_metrics = self.eval_epoch(epoch_idx)
         return {
             "train_loss": avg_train_loss,
-        }
+        }.update(eval_avg_metrics), eval_metrics
 
     @torch.no_grad()
     def sample_graphs(self) -> list:
@@ -188,17 +196,34 @@ class GVAE_Training:
 
     @torch.no_grad()
     def eval_samples(self, generated_graphs):
+        eval_results = {
+            "test_loss": [],
+            "test_acc": [],
+            "f1_metric": [],
+            "recall": [],
+            "precision": [],
+            "distinct_count": [],
+        }
         for idx, g in enumerate(generated_graphs):
             nn = pygeometric_to_nn(copy.deepcopy(g), self.base_model)
             test_process = SupervisedLearning(
                 nn, test_set=self.test_set, device=self.device
             )
             print("\nTesting Generated Sample %d:\n" % (idx + 1))
-            print("NN id", id(nn))
 
-            test_process.test()
+            sample_test_metrics = test_process.test()
+            for key in eval_results.keys():
+                eval_results[key].append(sample_test_metrics[key])
+        eval_avg_result = {}
+        for k, v in eval_results.items():
+            if type(v[0]) != list:
+                eval_avg_result[f"mean_{k}"] = sum(v)/len(v)
+            else:
+                eval_avg_result[f"mean_{k}"] = np.mean(
+                    np.array(v), axis=0).tolist()
+        return eval_results, eval_avg_result
 
     def eval_epoch(self, idx):
         print("\nEvaluating graph samples -- Epoch %d" % idx)
         sampled_graphs = self.sample_graphs()
-        self.eval_samples(sampled_graphs)
+        return self.eval_samples(sampled_graphs)

@@ -99,13 +99,22 @@ def run(cfg: CONFIG):
         cfg.decay_rate,
         cfg.num_samples,
         device=cfg.device,
-        grad_accumulation = cfg.grad_accumulation,
-        log_training = True,
-        checkpoint_every = 5,
+        grad_accumulation=cfg.grad_accumulation,
+        log_training=True,
+        checkpoint_every=5,
+        logger=cfg.logger
     )
-    GVAE_training_process.train()
+    train_metrics = GVAE_training_process.train()
     print("End of training final evaluation:\n")
-    GVAE_training_process.eval_epoch(cfg.epochs+1)
+    final_epoch_metrics, final_epoch_avg_metrics = GVAE_training_process.eval_epoch(
+        cfg.epochs+1)
+
+    if cfg.logger:
+        cfg.logger.save_results(train_metrics, "training_metrics.json")
+        cfg.logger.save_results(final_epoch_metrics,
+                                "final_epoch_metrics.json")
+        cfg.logger.save_results(final_epoch_avg_metrics,
+                                "final_epoch_avg_metrics.json")
 
 
 if __name__ == "__main__":

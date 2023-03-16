@@ -51,7 +51,7 @@ class CONFIG:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_SVI_MLP_PGM_{num_iterations}_its_{batch_size}_b_{learning_rate}_lr"
-        if log_training:
+        if self.log_training:
             if os.path.isdir(EXPERIMENTAL_RESULTS_PATH):
                 self.experiment_dir = os.path.join(
                     EXPERIMENTAL_RESULTS_PATH, self.experiment_name
@@ -105,14 +105,23 @@ def run_experiment(cfg: CONFIG):
     _, test_set = gen_model_test_dataset()
 
     # print("\nTesting Generated Sample 1:\n")
-    sample_weight_accs = []
+    sample_weight_metrics = {"test_loss": [],
+                             "test_acc": [],
+                             "f1_metric": [],
+                             "recall": [],
+                             "precision": [],
+                             "distinct_count": [], }
     for i in range(cfg.num_weight_samples):
         test_process = SupervisedLearning(
             nn_s[i], test_set=test_set, device=cfg.device)
         test_metrics = test_process.test()
-        sample_weight_accs.append(test_metrics["test_acc"])
+        for key in sample_weight_metrics.keys():
+            sample_weight_metrics[key].append(test_metrics[key])
 
-    print("Ensemble Accuracy:", sum(sample_weight_accs) / cfg.num_weight_samples)
+    print("Ensemble Accuracy:", sum(
+        sample_weight_metrics["test_act"]) / cfg.num_weight_samples)
+    if cfg.logger:
+        cfg.logger.save_results()
 
 
 if __name__ == "__main__":

@@ -113,11 +113,12 @@ def run(cfg: CONFIG):
         device=cfg.device,
         checkpoint_every=cfg.checkpoint_every,
         checkpoint_dir_path=cfg.checkpoint_path,
+        logger=cfg.logger
     )
 
     train_metrics = diffusion_process.train()
     if cfg.log_training:
-        cfg.logger.save_results(train_metrics)
+        cfg.logger.save_results(train_metrics, "training_results.json")
 
     # checkpoint = torch.load("/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-16_19-01-15_DDPM_MNIST_e_100_1000_steps/checkpoints/ddpm_fully_trained_e_100_loss_0.011.pt")
     # diffusion_process.noise_predictor.load_state_dict(checkpoint["model_state_dict"])
@@ -127,8 +128,13 @@ def run(cfg: CONFIG):
     # checkpoint = torch.load("/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-12_11-23-54_DDPM_model_dataset_MNIST_e_1_150_steps/checkpoints/ddpm_fully_trained_e_1_loss_1.000.pt")
     # diffusion_process.checkpoint_dir_path = "/scratch_net/bmicdl03/kgolan/Thesis/experiments/experimental_results/2023-01-12_11-23-54_DDPM_model_dataset_MNIST_e_1_150_steps/checkpoints/"
     # diffusion_process.noise_predictor.load_state_dict(checkpoint["unet_state_dict"])
-    gen_samples = diffusion_process.sample("after_training")
-
+    gen_samples, after_training_sample_eval_results, after_training_sample_avg_results = diffusion_process.sample(
+        "after_training")
+    if cfg.log_training:
+        cfg.logger.save_results(
+            after_training_sample_eval_results, "after_training_sample_evaluation.json")
+        cfg.logger.save_results(
+            after_training_sample_avg_results, "after_training_avg_sample_results.json")
     # gen_model_test_dataset = DatasetRetriever(cfg.dataset.original_dataset)
     # _, test_set = gen_model_test_dataset()
 
@@ -180,13 +186,15 @@ def main():
         epochs=experiment_params.num_epochs,
         learning_rate=experiment_params.learning_rate,
         batch_size=experiment_params.batch_size,
+        grad_accumulator=1,
+        n_samples_gen=3,
         sample_size=(None, None),
-        log_training=True,
-        checkpoint_every=experiment_params.save_every,
         n_blocks=1,
-        is_attention=[False, False, True, True],
+        is_attention=[False, False, False, False],
         resize_images=False,
         checkpoint_path=1,
+        checkpoint_every=experiment_params.save_every,
+        log_training=True,
     )
     run(cfg)
 

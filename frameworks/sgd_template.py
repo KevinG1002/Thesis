@@ -1,4 +1,5 @@
-import torch, os
+import torch
+import os
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 import numpy as np
@@ -126,7 +127,8 @@ class SupervisedLearning(BasicLearning):
                 self.epochs,
                 train_ep_metrics["val_loss"],
             )
-            model_checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
+            model_checkpoint_path = os.path.join(
+                self.checkpoint_dir, checkpoint_name)
             checkpoint(
                 model_checkpoint_path,
                 epoch + 1,
@@ -142,7 +144,8 @@ class SupervisedLearning(BasicLearning):
             self.optimizer.zero_grad()
             mbatch_x = mbatch_x.to(self.device)
             flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
-            one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y].to(self.device)
+            one_hot_mbatch_y = torch.eye(self.num_classes)[
+                mbatch_y].to(self.device)
             pred_y = self.model(flattened_mbatch_x)
             loss = self.criterion(
                 pred_y,
@@ -162,7 +165,8 @@ class SupervisedLearning(BasicLearning):
             for idx, (mbatch_x, mbatch_y) in enumerate(self.val_dataloader):
                 mbatch_x = mbatch_x.to(self.device)
                 flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
-                one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y].to(self.device)
+                one_hot_mbatch_y = torch.eye(self.num_classes)[
+                    mbatch_y].to(self.device)
                 pred_y = self.model(flattened_mbatch_x)
                 val_loss += self.criterion(pred_y, one_hot_mbatch_y)
                 correct_preds += torch.where(
@@ -196,7 +200,8 @@ class SupervisedLearning(BasicLearning):
         for mbatch_x, mbatch_y in self.test_dataloader:
             mbatch_x = mbatch_x.to(self.device)
             flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
-            one_hot_mbatch_y = torch.eye(self.num_classes)[mbatch_y].to(self.device)
+            one_hot_mbatch_y = torch.eye(self.num_classes)[
+                mbatch_y].to(self.device)
             pred_y = self.model(flattened_mbatch_x)
             test_loss += self.criterion(pred_y, one_hot_mbatch_y)
             correct_preds += torch.where(
@@ -206,10 +211,11 @@ class SupervisedLearning(BasicLearning):
             groundtruth += mbatch_y.tolist()
 
         f1_metric = f1_score(groundtruth, predictions, average="weighted")
-        precision = precision_score(groundtruth, predictions, average="weighted")
+        precision = precision_score(
+            groundtruth, predictions, average="weighted")
         recall = recall_score(groundtruth, predictions, average="weighted")
         cm = confusion_matrix(groundtruth, predictions)
-        distinct_count = np.bincount(predictions)
+        distinct_count = np.sum(cm, axis=0).tolist()
         print(
             "\nTesting Loss: %.3f || Testing Accuracy: %.3f || Precision: %.3f || Recall: %.3f || F1 Score: %.3f"
             % (
