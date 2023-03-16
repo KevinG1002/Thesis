@@ -28,9 +28,9 @@ class CONFIG:
         is_attention: "list[bool]" = [False, False, False, False],
         n_blocks: int = 2,
         batch_size: int = 16,
-        epochs: int = 50,
+        epochs: int = 100,
         learning_rate: float = 1e-4,
-        n_samples_gen: int = 5,
+        n_samples_gen: int = 20,
         resize_images: bool = True,
         log_training: bool = False,
         checkpoint_path: str = None,
@@ -168,19 +168,20 @@ def run(cfg: CONFIG):
 def main():
     # dataset_name = "MNIST"
     experiment_params = argument_parser()
-    dataset_name = experiment_params.dataset_name
+    # dataset_name = experiment_params.dataset_name
+    dataset_name = "model_dataset_MNIST"
     cfg = CONFIG(
         dataset_name,
         n_diffusion_steps=experiment_params.n_steps,
         sample_channels=1,
         epochs=experiment_params.num_epochs,
-        learning_rate=2e-5,
+        learning_rate=experiment_params.learning_rate,
         batch_size=experiment_params.batch_size,
         sample_size=(None, None),
         log_training=True,
         checkpoint_every=experiment_params.save_every,
         n_blocks=1,
-        is_attention=[False, False, False, True],
+        is_attention=[False, False, True, True],
         resize_images=False,
         checkpoint_path=1,
     )
