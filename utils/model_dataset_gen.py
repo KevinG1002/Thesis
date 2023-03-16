@@ -6,7 +6,7 @@ from torch.nn import CrossEntropyLoss
 from torchvision.datasets import MNIST, CIFAR10
 import torchvision.transforms as transforms
 from torch.optim import Adam
-from models.mlp import MLP
+from models.mlp import MLP, SmallMLP
 from frameworks.sgd_template import SupervisedLearning
 from utils.params import argument_parser
 
@@ -72,16 +72,16 @@ def run(cfg: GENCONFIG):
 
     dataset_dicts = {}
 
-    models = [MLP() for _ in range(cfg.num_runs)]
+    models = [SmallMLP() for _ in range(cfg.num_runs)]
     optimizers = [
         Adam(models[i].parameters(), lr=cfg.learning_rate) for i in range(cfg.num_runs)
     ]
     print(cfg.device)
-    with open(f"{cfg.target_dir}/model_dataset.json", "w") as file:
+    with open(f"{cfg.target_dir}/small_model_dataset.json", "w") as file:
         json.dump(dataset_dicts, file)
     for i in range(cfg.num_runs):
         # entry = {}
-        model_path = f"{cfg.target_dir}models/mlp_mnist_model_{i}.pth"
+        model_path = f"{cfg.target_dir}models/small_mlp_mnist_model_{i}.pth"
         training_process = SupervisedLearning(
             model=models[i].to(cfg.device),
             train_set=cfg.train_set,
@@ -98,7 +98,7 @@ def run(cfg: GENCONFIG):
         performance_dict = training_process.test()
         trained_model = copy.deepcopy(training_process.model)
         torch.save(trained_model.state_dict(), model_path)
-        with open(f"{cfg.target_dir}/model_dataset.json", "w") as file:
+        with open(f"{cfg.target_dir}/small_model_dataset.json", "w") as file:
             dataset_dicts[model_path] = {
                 k: v.cpu().item() if type(v) == torch.Tensor else v
                 for k, v in performance_dict.items()
@@ -110,7 +110,7 @@ def run(cfg: GENCONFIG):
 def main():
     target_dataset = "MNIST"
     target_directory = (
-        f"/scratch_net/bmicdl03/kgolan/Thesis/datasets/model_dataset_{target_dataset}/"
+        f"/scratch_net/bmicdl03/kgolan/Thesis/datasets/small_model_dataset_{target_dataset}/"
     )
     # target_directory = f"../datasets/model_dataset_{target_dataset}/"
     if not os.path.exists(target_directory):

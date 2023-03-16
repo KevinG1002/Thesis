@@ -5,8 +5,11 @@ import torch.nn.functional as F
 import sys
 
 sys.path.append("..")
-from distributions.param_distribution import ParameterDistribution
-from distributions.gaussians import UnivariateGaussian, MultivariateDiagonalGaussian
+from thesis_distributions.param_distribution import ParameterDistribution
+from thesis_distributions.gaussians import (
+    UnivariateGaussian,
+    MultivariateDiagonalGaussian,
+)
 
 
 class BayesianLayer(Module):
@@ -56,7 +59,9 @@ class BayesianLayer(Module):
         else:
             self.bias_var_posterior = None
         self.weight_prior = (
-            prior if prior else UnivariateGaussian(torch.zeros(1), torch.ones(1)).to(self.device)
+            prior
+            if prior
+            else UnivariateGaussian(torch.zeros(1), torch.ones(1)).to(self.device)
         )
         assert isinstance(self.weight_prior, ParameterDistribution)
         assert not any(
@@ -80,9 +85,11 @@ class BayesianLayer(Module):
             x(torch.Tensor): input to bayesian layer.
         """
 
-        epsilon = torch.distributions.Normal(0, 1).sample(
-            (self.out_features, self.in_features)
-        ).to(self.device)
+        epsilon = (
+            torch.distributions.Normal(0, 1)
+            .sample((self.out_features, self.in_features))
+            .to(self.device)
+        )
 
         weights = self.weights_var_posterior.mu + (
             self.weights_var_posterior.sigma * epsilon
@@ -93,7 +100,11 @@ class BayesianLayer(Module):
         ).sum()
 
         if self.bias:
-            eps = torch.distributions.Normal(0, 1).sample([self.out_features]).to(self.device)
+            eps = (
+                torch.distributions.Normal(0, 1)
+                .sample([self.out_features])
+                .to(self.device)
+            )
             bias = self.bias_var_posterior.mu + eps * (self.bias_var_posterior.sigma)
 
             log_prior += self.bias_prior.log_likelihood(bias).sum()

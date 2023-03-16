@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import sys
 from frameworks.bayesian_layer import BayesianLayer
-from distributions.param_distribution import ParameterDistribution
+from thesis_distributions.param_distribution import ParameterDistribution
 
 
 class SimpleBNN(nn.Module):

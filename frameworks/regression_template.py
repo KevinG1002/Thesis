@@ -1,20 +1,22 @@
-import torch
-import os
+import torch, os
 import torch.nn as nn
-from torch.nn import CrossEntropyLoss
-import numpy as np
+from torch.nn import MSELoss
 from torch.nn.modules.loss import _Loss
-import torch.nn.functional as F
 from torch.utils.data import Dataset, random_split, DataLoader
-from torch.optim import Optimizer, SGD, Adam
+from torch.optim import Adam
 from frameworks.basic_template import BasicLearning
 from utils.exp_logging import checkpoint
-from sklearn.metrics import precision_score, f1_score, recall_score, confusion_matrix
-from models.mlp import MLP
+from sklearn.metrics import (
+    mean_squared_error,
+    mean_absolute_error,
+    r2_score,
+    mean_absolute_percentage_error,
+)
+from models.mlp import RegressMLP
 from datasets.get_dataset import DatasetRetriever
 
 
-class SupervisedLearning(BasicLearning):
+class RegressionTemplate(BasicLearning):
     optim: Adam
 
     def __init__(
@@ -23,7 +25,6 @@ class SupervisedLearning(BasicLearning):
         train_set: Dataset = None,
         test_set: Dataset = None,
         val_set: Dataset = None,
-        num_classes: int = 10,
         epochs: int = 10,
         batch_size: int = 32,
         learning_rate: float = 1e-3,
@@ -40,8 +41,7 @@ class SupervisedLearning(BasicLearning):
         self.batch_size = batch_size
         self.val_set = val_set if val_set else self._instantiate_val_set()
         self.optimizer = Adam(self.model.parameters(), lr=learning_rate)
-        self.criterion = criterion if criterion else CrossEntropyLoss()
-        self.num_classes = num_classes
+        self.criterion = criterion if criterion else MSELoss()
         self.device = device
         self.checkpoint_every = checkpoint_every
         self.checkpoint_dir = checkpoint_dir
@@ -127,8 +127,7 @@ class SupervisedLearning(BasicLearning):
                 self.epochs,
                 train_ep_metrics["val_loss"],
             )
-            model_checkpoint_path = os.path.join(
-                self.checkpoint_dir, checkpoint_name)
+            model_checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
             checkpoint(
                 model_checkpoint_path,
                 epoch + 1,
@@ -142,14 +141,12 @@ class SupervisedLearning(BasicLearning):
         train_loss = 0.0
         for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
             self.optimizer.zero_grad()
-            mbatch_x = mbatch_x.to(self.device)
-            flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
-            one_hot_mbatch_y = torch.eye(self.num_classes)[
-                mbatch_y].to(self.device)
-            pred_y = self.model(flattened_mbatch_x)
+            mbatch_x = mbatch_x.unsqueeze(-1).unsqueeze(-1).to(self.device)
+            pred_y = self.model(mbatch_x).squeeze()
+            # print(pred_y.size(), mbatch_y.size())
             loss = self.criterion(
                 pred_y,
-                one_hot_mbatch_y,
+                mbatch_y,
             )
             if idx % 100 == 0:
                 print("Training loss: %.3f" % loss)
@@ -161,32 +158,38 @@ class SupervisedLearning(BasicLearning):
         # Beginning of validation loop #
         with torch.no_grad():
             val_loss = 0.0
-            correct_preds = 0
+            predictions = []
+            groundtruth = []
             for idx, (mbatch_x, mbatch_y) in enumerate(self.val_dataloader):
-                mbatch_x = mbatch_x.to(self.device)
-                flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
-                one_hot_mbatch_y = torch.eye(self.num_classes)[
-                    mbatch_y].to(self.device)
-                pred_y = self.model(flattened_mbatch_x)
-                val_loss += self.criterion(pred_y, one_hot_mbatch_y)
-                correct_preds += torch.where(
-                    torch.argmax(pred_y.cpu(), dim=1) == mbatch_y,
-                    1,
-                    0,
-                ).sum()
+                mbatch_x = mbatch_x.unsqueeze(-1).to(self.device)
+                pred_y: torch.Tensor = self.model(mbatch_x).squeeze()
+                val_loss += self.criterion(pred_y, mbatch_y)
+                predictions += pred_y.tolist()
+                groundtruth += mbatch_y.tolist()
+
+            val_mse = mean_squared_error(groundtruth, predictions)
+            val_mae = mean_absolute_error(groundtruth, predictions)
+            val_mape = mean_absolute_percentage_error(groundtruth, predictions)
+            val_r2 = r2_score(groundtruth, predictions)
             print(
-                "\nEpoch %d\t Avg Train Loss: %.3f|| Avg Validation Loss: %.3f|| Validation Accuracy: %.3f"
+                "\nEpoch %d\t Avg Train Loss: %.3f|| Avg Validation Loss: %.3f|| Validation MSE: %.3f || Validation MAE: %.3f || Validation MAPE: %.3f || Validation R2-Score: %.3f"
                 % (
                     epoch_idx,
                     avg_train_loss,
                     val_loss / len(self.val_dataloader),
-                    float(correct_preds / len(self.val_set)),
+                    val_mse,
+                    val_mae,
+                    val_mape,
+                    val_r2,
                 )
             )
             return {
                 "train_loss": avg_train_loss,
                 "val_loss": val_loss.item() / len(self.val_dataloader),
-                "val_acc": float(correct_preds / len(self.val_set)),
+                "val_mse": val_mse,
+                "val_mae": val_mae,
+                "val_mape": val_mape,
+                "val_r2": val_r2,
             }
 
     @torch.no_grad()
@@ -194,63 +197,52 @@ class SupervisedLearning(BasicLearning):
         self.model.eval()
         self.test_dataloader = self._instantiate_test_dataloader()
         test_loss = 0.0
-        correct_preds = 0
+
         predictions = []
         groundtruth = []
         for mbatch_x, mbatch_y in self.test_dataloader:
-            mbatch_x = mbatch_x.to(self.device)
-            flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
-            one_hot_mbatch_y = torch.eye(self.num_classes)[
-                mbatch_y].to(self.device)
-            pred_y = self.model(flattened_mbatch_x)
-            test_loss += self.criterion(pred_y, one_hot_mbatch_y)
-            correct_preds += torch.where(
-                torch.argmax(pred_y.cpu(), dim=1) == mbatch_y, 1, 0
-            ).sum()
-            predictions += torch.argmax(pred_y.cpu(), dim=1).tolist()
+            mbatch_x = mbatch_x.unsqueeze(-1).to(self.device)
+            pred_y = self.model(mbatch_x).squeeze()
+            test_loss += self.criterion(pred_y, mbatch_y)
+            predictions += pred_y.tolist()
             groundtruth += mbatch_y.tolist()
 
-        f1_metric = f1_score(groundtruth, predictions, average="weighted")
-        precision = precision_score(
-            groundtruth, predictions, average="weighted")
-        recall = recall_score(groundtruth, predictions, average="weighted")
-        cm = confusion_matrix(groundtruth, predictions)
-        distinct_count = np.sum(cm, axis=0).tolist()
+        test_mse = mean_squared_error(groundtruth, predictions)
+        test_mae = mean_absolute_error(groundtruth, predictions)
+        test_mape = mean_absolute_percentage_error(groundtruth, predictions)
+        test_r2 = r2_score(groundtruth, predictions)
         print(
-            "\nTesting Loss: %.3f || Testing Accuracy: %.3f || Precision: %.3f || Recall: %.3f || F1 Score: %.3f"
+            "\nTesting Loss: %.3f || Testing MSE: %.3f || Testing MAE: %.3f || Testing MAPE: %.3f || Testing R2-Score: %.3f"
             % (
                 test_loss / len(self.test_dataloader),
-                float(correct_preds / len(self.test_set)),
-                precision,
-                recall,
-                f1_metric,
+                test_mse,
+                test_mae,
+                test_mape,
+                test_r2,
             )
         )
-        print("\nConfusion Matrix:\n%s" % cm)
-        print("\nDistinct Count: %s" % distinct_count)
         return {
             "test_loss": test_loss.item() / len(self.test_dataloader),
-            "test_acc": float(correct_preds / len(self.test_set)),
-            "f1_metric": f1_metric,
-            "recall": recall,
-            "precision": precision,
-            "confusion_matrix": cm,
-            "distinct_count": distinct_count,
+            "test_mse": test_mse,
+            "test_mae": test_mae,
+            "test_mape": test_mape,
+            "test_r2": test_r2,
         }
 
 
 def test():
-    nn = MLP()
-    nn.load_state_dict(
-        torch.load(
-            "/Users/kevingolan/Documents/Coding_Assignments/Thesis/datasets/model_dataset_MNIST/models/mlp_mnist_model_0.pth",
-            map_location="cpu",
-        )
-    )
-    d = DatasetRetriever("MNIST")
-    _, test_data = d()
-    test_process = SupervisedLearning(nn, test_set=test_data)
-    test_process.test()
+    nn = RegressMLP()
+    # nn.load_state_dict(
+    #     torch.load(
+    #         "/Users/kevingolan/Documents/Coding_Assignments/Thesis/datasets/model_dataset_MNIST/models/mlp_mnist_model_0.pth",
+    #         map_location="cpu",
+    #     )
+    # )
+    d = DatasetRetriever("SineDataset")
+    train_data, test_data = d()
+    process = RegressionTemplate(nn, train_data, test_data, batch_size=16)
+    process.train()
+    process.test()
 
 
 if __name__ == "__main__":

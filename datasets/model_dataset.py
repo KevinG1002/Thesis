@@ -7,7 +7,7 @@ import torch.nn as nn
 from typing import Callable
 from torch.utils.data import Dataset, DataLoader
 from utils.weight_transformations import pad_to, unpad, nn_to_2d_tensor
-from models.mlp import MLP, SimpleMLP
+from models.mlp import MLP, SmallMLP
 
 
 class ModelsDataset(Dataset):

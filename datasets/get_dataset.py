@@ -3,6 +3,7 @@ from torchvision.datasets import MNIST, CIFAR10, CelebA
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, random_split
 from datasets.model_dataset import ModelsDataset
+from datasets.sin_dataset import SineDataset
 from utils.weight_transformations import pad_to, unpad, nn_to_2d_tensor
 from models.mlp import MLP
 
@@ -20,10 +21,12 @@ def restore_from_unit_radius(tensor: torch.Tensor):
     """
     return (tensor + 1) / 2 * 255.0
 
+
 class UnitRadTransform(object):
     """
     Callable class to implement [-1, 1] scaling on unit-scaled transformation (i.e. assumes images are already scaled between [0,1])
     """
+
     def __call__(self, tensor):
         return 2 * tensor - 1
 
@@ -48,6 +51,8 @@ class DatasetRetriever:
             "resize": transforms.Resize(size=resize_dim),
             "unit_radius_norm": UnitRadTransform(),
         }
+        self.train_set = None
+        self.test_set = None
 
     def __call__(self) -> "tuple[Dataset, Dataset]":
         if self.dataset_name == "MNIST":
@@ -173,5 +178,13 @@ class DatasetRetriever:
                 original_dataset="MNIST",
             )
             return self.dataset, None
+
+        elif self.dataset_name == "SineDataset":
+            dataset = SineDataset(40000, (0, 10))
+            self.train_set, self.test_set = random_split(
+                dataset, [0.85, 0.15], generator=torch.Generator().manual_seed(42)
+            )
+            return self.train_set, self.test_set
+
         else:
             raise "Dataset not available yet"

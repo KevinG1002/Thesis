@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from datasets.model_dataset import ModelsDataset
 from datasets.get_dataset import DatasetRetriever
 from models.ddpm import DDPM
-from utils.exp_logging import checkpoint
+from utils.exp_logging import checkpoint, Logger
 from models.unet import DDPMUNet
 from utils.profile import profile
 from utils.weight_transformations import nn_to_2d_tensor, tensor_to_nn
@@ -36,12 +36,14 @@ class DDPMDiffusion:
         n_blocks: int,
         num_gen_samples: int,
         batch_size: int,
+        grad_accumulation: int,
         learning_rate: float,
         epochs: int,
         dataset: Dataset,
         device: str,
         checkpoint_every: int,
         checkpoint_dir_path: str,
+        logger: Logger = None,
     ) -> None:
         """
         Diffusion Model template for training and generation of samples belonging to some dataset.
@@ -62,6 +64,7 @@ class DDPMDiffusion:
             - is_attention: list of booleans denoting if an attention block should be used at a resolution level in a UNet.
             - num_gen_samples: number of samples to generate once diffusion process is done.
             - batch_size: batch_size during training of UNet model
+            - grad_accumulation: how many batch gradients to accumulate (enables gradient computation over larger number of sampels)
             - learning_rate: learning rate for UNEt optimizer
             - epochs: number of epochs for UNet to iterate over dataset.
             - dataset: dataset to synthesize examples from.
@@ -76,6 +79,7 @@ class DDPMDiffusion:
         self.is_attention = is_attention
         self.num_gen_samples = num_gen_samples
         self.batch_size = batch_size
+        self.grad_accumulation = grad_accumulation
         self.learning_rate = learning_rate
         self.epochs = epochs
         self.dataset = dataset
@@ -93,6 +97,7 @@ class DDPMDiffusion:
         # Checkpointing attributes
         self.checkpoint_every = checkpoint_every
         self.checkpoint_dir_path = checkpoint_dir_path
+        self.logger = logger
         assert (checkpoint_dir_path and checkpoint_every) or not (
             checkpoint_dir_path and checkpoint_every
         ), "Missing either one of checkpoint dir (str path) or checkpoint frequency (int)"
@@ -107,29 +112,43 @@ class DDPMDiffusion:
             self.experiment_dir = os.getcwd()
 
     def train_epoch(self, epoch_idx):
-        freq = 10 if isinstance(self.dataset, ModelsDataset) else 100
+        freq = 50 if isinstance(self.dataset, ModelsDataset) else 100
         for idx, (mbatch_x, mbatch_y) in enumerate(self.dataloader):
             mbatch_x = mbatch_x.to(self.device)
             mbatch_y = mbatch_y.to(self.device)
-            self.optimizer.zero_grad()
-            self.loss = self.ddpm.l_simple(mbatch_x)
+            self.loss = self.ddpm.l_simple(mbatch_x) / self.grad_accumulation
             if idx % freq == 0:
                 print("Epoch %d : Diffusion Loss %.3f" %
                       (epoch_idx, self.loss))
             self.loss.backward()
-            self.optimizer.step()
+            if (idx + 1) % self.grad_accumulation:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
 
     def train(self):
         """
         Train UNet in conjuction with DDPM.
         """
         print("Training DDPM on device:", self.device)
-        train_metrics = {"train_diff_loss": []}
+        train_metrics = {"train_diff_loss": [],
+                         "mean_test_loss": [],
+                         "mean_test_acc": [],
+                         "mean_f1_metric": [],
+                         "mean_recall": [],
+                         "mean_precision": [],
+                         "mean_distinct_count": [],
+                         }
 
         for epoch in range(self.epochs):
             print("\nEpoch %d\n" % (epoch + 1))
             self.train_epoch(epoch + 1)
-            self.sample("")
+            _, sample_eval_metrics, sample_eval_avg_metrics = self.sample("")
+            for key in sample_eval_avg_metrics.keys():
+                train_metrics[key].append(sample_eval_avg_metrics[key])
+            if self.logger:
+                self.logger.save_results(
+                    sample_eval_metrics, f"sample_model_metrics_epoch{epoch+1}.json")
+
             train_metrics["train_diff_loss"].append(self.loss.item())
             if self.checkpoint_every and (epoch % self.checkpoint_every == 0):
                 checkpoint_name = "ddpm_checkpoint_e_%d_loss_%.3f.pt" % (
@@ -196,12 +215,15 @@ class DDPMDiffusion:
         #         plt.imsave(
         #             f"{self.experiment_dir}/{title}_gen_sample_{i}.png",
         #             np.squeeze(x[i].cpu().numpy()),
-            # )
+        # )
         # return restored_samples
         if isinstance(self.dataset, ModelsDataset):
-            self.eval_gen_model(x)
+            sample_eval_results, sample_avg_results = self.eval_gen_model(x)
             samples = torch.chunk(x, self.num_gen_samples, 0)
-            return [self.dataset.restore_original_tensor(samples[i]) for i in range(self.num_gen_samples)]
+            return [
+                self.dataset.restore_original_tensor(samples[i])
+                for i in range(self.num_gen_samples)
+            ], sample_eval_results, sample_avg_results
         else:
             for i in range(self.num_gen_samples):
                 plt.imsave(
@@ -213,15 +235,46 @@ class DDPMDiffusion:
     def eval_gen_model(self, gen_models: torch.Tensor):
         samples = torch.chunk(gen_models, self.num_gen_samples, 0)
         assert isinstance(
-            self.dataset, ModelsDataset), "Can't evaluate generated model because it's not a tensor that can be structured as an MLP."
+            self.dataset, ModelsDataset
+        ), "Can't evaluate generated model because it's not a tensor that can be structured as an MLP."
         gen_model_test_dataset = DatasetRetriever(
             self.dataset.original_dataset)
         _, test_set = gen_model_test_dataset()
+        eval_results = {
+            "test_loss": [],
+            "test_acc": [],
+            "f1_metric": [],
+            "recall": [],
+            "precision": [],
+            "distinct_count": [],
+        }
+        # eval_mean_results = {
+        #     "mean_loss" : None,
+        #     "mean_acc" : None,
+        #     "mean_f1" : None,
+        #     "mean_recall" : None,
+        #     "mean_precision" : None,
+        #     "mean_count" : None
+        # }
         for i in range(self.num_gen_samples):
             nn_tensor = self.dataset.restore_original_tensor(samples[i])
             nn = tensor_to_nn(nn_tensor, self.dataset.base_model)
-            print("\nEvaluating DDPM Generated Model %d on %s" %
-                  (i+1, self.dataset.original_dataset))
+            print(
+                "\nEvaluating DDPM Generated Model %d on %s"
+                % (i + 1, self.dataset.original_dataset)
+            )
             mnist_process = SupervisedLearning(
-                nn, test_set=test_set, device=self.device)
-            mnist_process.test()
+                nn, test_set=test_set, device=self.device
+            )
+
+            sample_result = mnist_process.test()
+            for key in eval_results.keys():
+                eval_results[key].append(sample_result[key])
+        eval_avg_result = {}
+        for k, v in eval_results.items():
+            if type(v[0]) != list:
+                eval_avg_result[f"mean_{k}"] = sum(v)/len(v)
+            else:
+                eval_avg_result[f"mean_{k}"] = np.mean(
+                    np.array(v), axis=0).tolist()
+        return eval_results, eval_avg_result
