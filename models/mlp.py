@@ -25,7 +25,7 @@ class MLP(nn.Module):
 
 class SmallMLP(nn.Module):
     """
-    Basic MLP class for experiments. 3 layers including input and output layers.
+    Basic MLP class for experiments. 2 layers including input and output layers.
     """
 
     def __init__(self, input_dim: int = 784, num_classes: int = 10):
