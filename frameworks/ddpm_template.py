@@ -36,6 +36,7 @@ class DDPMDiffusion:
         n_blocks: int,
         num_gen_samples: int,
         batch_size: int,
+        grad_accumulation: int,
         learning_rate: float,
         epochs: int,
         dataset: Dataset,
@@ -62,6 +63,7 @@ class DDPMDiffusion:
             - is_attention: list of booleans denoting if an attention block should be used at a resolution level in a UNet.
             - num_gen_samples: number of samples to generate once diffusion process is done.
             - batch_size: batch_size during training of UNet model
+            - grad_accumulation: how many batch gradients to accumulate (enables gradient computation over larger number of sampels)
             - learning_rate: learning rate for UNEt optimizer
             - epochs: number of epochs for UNet to iterate over dataset.
             - dataset: dataset to synthesize examples from.
@@ -76,6 +78,7 @@ class DDPMDiffusion:
         self.is_attention = is_attention
         self.num_gen_samples = num_gen_samples
         self.batch_size = batch_size
+        self.grad_accumulation = grad_accumulation
         self.learning_rate = learning_rate
         self.epochs = epochs
         self.dataset = dataset
@@ -83,10 +86,8 @@ class DDPMDiffusion:
         self.noise_predictor = DDPMUNet(
             sample_channels, num_channels, channel_multipliers, is_attention, n_blocks
         ).to(self.device)
-        self.ddpm = DDPM(self.noise_predictor,
-                         self.diffusion_steps, self.device)
-        self.optimizer = Adam(
-            self.noise_predictor.parameters(), self.learning_rate)
+        self.ddpm = DDPM(self.noise_predictor, self.diffusion_steps, self.device)
+        self.optimizer = Adam(self.noise_predictor.parameters(), self.learning_rate)
         self.dataloader = DataLoader(
             self.dataset, self.batch_size, shuffle=True, pin_memory=True
         )
@@ -111,13 +112,13 @@ class DDPMDiffusion:
         for idx, (mbatch_x, mbatch_y) in enumerate(self.dataloader):
             mbatch_x = mbatch_x.to(self.device)
             mbatch_y = mbatch_y.to(self.device)
-            self.optimizer.zero_grad()
-            self.loss = self.ddpm.l_simple(mbatch_x)
+            self.loss = self.ddpm.l_simple(mbatch_x) / self.grad_accumulation
             if idx % freq == 0:
-                print("Epoch %d : Diffusion Loss %.3f" %
-                      (epoch_idx, self.loss))
+                print("Epoch %d : Diffusion Loss %.3f" % (epoch_idx, self.loss))
             self.loss.backward()
-            self.optimizer.step()
+            if (idx + 1) % self.grad_accumulation:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
 
     def train(self):
         """
@@ -151,8 +152,7 @@ class DDPMDiffusion:
                 self.epochs,
                 self.loss,
             )
-            checkpoint_path = os.path.join(
-                self.checkpoint_dir_path, checkpoint_name)
+            checkpoint_path = os.path.join(self.checkpoint_dir_path, checkpoint_name)
             checkpoint(
                 checkpoint_path,
                 self.epochs,
@@ -196,12 +196,15 @@ class DDPMDiffusion:
         #         plt.imsave(
         #             f"{self.experiment_dir}/{title}_gen_sample_{i}.png",
         #             np.squeeze(x[i].cpu().numpy()),
-            # )
+        # )
         # return restored_samples
         if isinstance(self.dataset, ModelsDataset):
             self.eval_gen_model(x)
             samples = torch.chunk(x, self.num_gen_samples, 0)
-            return [self.dataset.restore_original_tensor(samples[i]) for i in range(self.num_gen_samples)]
+            return [
+                self.dataset.restore_original_tensor(samples[i])
+                for i in range(self.num_gen_samples)
+            ]
         else:
             for i in range(self.num_gen_samples):
                 plt.imsave(
@@ -213,15 +216,18 @@ class DDPMDiffusion:
     def eval_gen_model(self, gen_models: torch.Tensor):
         samples = torch.chunk(gen_models, self.num_gen_samples, 0)
         assert isinstance(
-            self.dataset, ModelsDataset), "Can't evaluate generated model because it's not a tensor that can be structured as an MLP."
-        gen_model_test_dataset = DatasetRetriever(
-            self.dataset.original_dataset)
+            self.dataset, ModelsDataset
+        ), "Can't evaluate generated model because it's not a tensor that can be structured as an MLP."
+        gen_model_test_dataset = DatasetRetriever(self.dataset.original_dataset)
         _, test_set = gen_model_test_dataset()
         for i in range(self.num_gen_samples):
             nn_tensor = self.dataset.restore_original_tensor(samples[i])
             nn = tensor_to_nn(nn_tensor, self.dataset.base_model)
-            print("\nEvaluating DDPM Generated Model %d on %s" %
-                  (i+1, self.dataset.original_dataset))
+            print(
+                "\nEvaluating DDPM Generated Model %d on %s"
+                % (i + 1, self.dataset.original_dataset)
+            )
             mnist_process = SupervisedLearning(
-                nn, test_set=test_set, device=self.device)
+                nn, test_set=test_set, device=self.device
+            )
             mnist_process.test()

@@ -28,7 +28,8 @@ class CONFIG:
         is_attention: "list[bool]" = [False, False, False, False],
         n_blocks: int = 2,
         batch_size: int = 16,
-        epochs: int = 100,
+        grad_accumulator: int = 1,
+        epochs: int = 50,
         learning_rate: float = 1e-4,
         n_samples_gen: int = 20,
         resize_images: bool = True,
@@ -44,6 +45,7 @@ class CONFIG:
         self.is_attention = is_attention
         self.n_blocks = n_blocks
         self.batch_size = batch_size
+        self.grad_accumulator = grad_accumulator
         self.epochs = epochs
         self.learning_rate = learning_rate
         self.n_samples_gen = n_samples_gen
@@ -104,6 +106,7 @@ def run(cfg: CONFIG):
         n_blocks=cfg.n_blocks,
         num_gen_samples=cfg.n_samples_gen,
         batch_size=cfg.batch_size,
+        grad_accumulation=cfg.grad_accumulator,
         learning_rate=cfg.learning_rate,
         epochs=cfg.epochs,
         dataset=cfg.dataset,

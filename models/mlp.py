@@ -1,6 +1,10 @@
 import torch.nn as nn
+import torch
 import torch.nn.functional as F
 from torchsummary import summary
+import copy
+
+torch.manual_seed(0)
 
 
 class MLP(nn.Module):
@@ -78,9 +82,57 @@ class RegressMLPTwo(nn.Module):
 
 
 def test():
-    mlp = MLP()
+    from datasets.get_dataset import DatasetRetriever
+    from torch.utils.data import DataLoader
+
+    d = DatasetRetriever("MNIST")
+    train_set, _ = d()
+    mlp = SmallMLP()
+    dataloader = DataLoader(train_set, 64, shuffle=False)
     print(mlp)
-    print(summary(model=mlp, input_size=(784,)))
+    # print(summary(model=mlp, input_size=(784,)))
+    optim1 = torch.optim.Adam(mlp.parameters(), lr=1e-3)
+    mlp_2 = copy.deepcopy(mlp)
+    optim2 = torch.optim.Adam(mlp_2.parameters(), lr=1e-3)
+    loss_fn = nn.CrossEntropyLoss()
+    print("Original Train Loop")
+    # for idx, (mbatchx, mbatchy) in enumerate(dataloader):
+    #     optim1.zero_grad()
+    #     flattened_mbatch_x = torch.flatten(mbatchx, start_dim=1)
+    #     one_hot_mbatch_y = torch.eye(10)[mbatchy]
+    #     pred_y = mlp(flattened_mbatch_x)
+    #     loss = loss_fn(
+    #         pred_y,
+    #         one_hot_mbatch_y,
+    #     )
+    #     loss.backward()
+    #     print(f"Batch size 1 (batch {idx}) - grad: {mlp.fc_2.weight.grad[0][0:10]}")
+    #     print(f"Batch size 1 (batch {idx}) - weight: {mlp.fc_2.weight[0][0:10]}")
+    #     optim1.step()
+    #     if idx == 3:
+    #         exit()
+
+    # for idx, (mbatchx, mbatchy) in enumerate(dataloader):
+    #     flattened_mbatch_x = torch.flatten(mbatchx, start_dim=1)
+    #     one_hot_mbatch_y = torch.eye(10)[mbatchy]
+    #     pred_y = mlp_2(flattened_mbatch_x)
+    #     loss = (
+    #         loss_fn(
+    #             pred_y,
+    #             one_hot_mbatch_y,
+    #         )
+    #         / 3
+    #     )
+    #     loss.backward()
+    #     grads = mlp_2.fc_1.weight.grad
+    #     print(f"Batch {idx} - grad: {mlp_2.fc_2.weight.grad[0][0:10]}")
+    #     print(f"Batch {idx} - weight: {mlp_2.fc_2.weight[0][0:10]}")
+    #     if (idx + 1) % 3 == 0:
+    #         optim2.step()
+    #         optim2.zero_grad()
+    #         print("\nWeights updated")
+    #     if idx == 10:
+    #         exit()
 
 
 if __name__ == "__main__":

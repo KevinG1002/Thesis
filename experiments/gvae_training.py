@@ -28,6 +28,7 @@ class CONFIG:
         criterion: Callable,
         epochs: int,
         batch_size: int,
+        grad_accumulation: int,
         learning_rate: float,
         decay_rate: float,
         num_samples: int,
@@ -42,6 +43,7 @@ class CONFIG:
         self.criterion = criterion
         self.epochs = epochs
         self.batch_size = batch_size
+        self.grad_accumulation = grad_accumulation
         self.learning_rate = learning_rate
         self.decay_rate = decay_rate
         self.num_samples = num_samples
@@ -97,7 +99,9 @@ def run(cfg: CONFIG):
         cfg.decay_rate,
         cfg.num_samples,
         device=cfg.device,
-
+        grad_accumulation = cfg.grad_accumulation,
+        log_training = True,
+        checkpoint_every = 5,
     )
     GVAE_training_process.train()
     print("End of training final evaluation:\n")
