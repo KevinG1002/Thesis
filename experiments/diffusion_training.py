@@ -187,7 +187,7 @@ def main():
         learning_rate=experiment_params.learning_rate,
         batch_size=experiment_params.batch_size,
         grad_accumulator=1,
-        n_samples_gen=3,
+        n_samples_gen=20,
         sample_size=(None, None),
         n_blocks=1,
         is_attention=[False, False, False, False],

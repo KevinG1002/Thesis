@@ -14,6 +14,8 @@ from samplers.graph_sampler import GVAE_Sampler
 from utils.graph_manipulations import pygeometric_to_nn
 from datasets.get_dataset import DatasetRetriever
 from torch_scatter import scatter
+from sklearn.metrics import precision_score, f1_score, recall_score, confusion_matrix
+
 import copy
 
 import os
@@ -90,7 +92,7 @@ class GVAE_Training:
             print("\nTraining for epoch %d done." % (epoch + 1))
             if self.logger:
                 self.logger.save_results(
-                    sample_model_metrics, f"sample_model_metrics_epoch_{epoch+1}.json")
+                    sample_model_metrics, f"sampled_model_metrics_epoch_{epoch+1}.json")
             if epoch < 1:
                 train_metrics = {
                     k: [v] for k, v in train_ep_metrics.items()
@@ -98,6 +100,9 @@ class GVAE_Training:
             else:
                 for k in train_ep_metrics.keys():
                     train_metrics[k].append(train_ep_metrics[k])
+                if self.logger:
+                    self.logger.save_results(
+                        train_metrics, f"train_metrics_so_far.json")
             if self.checkpoint_every and ((epoch + 1) % self.checkpoint_every == 0):
                 checkpoint_name = "%s_checkpoint_e_%d_loss_%.3f.pt" % (
                     self.model.name,
@@ -204,6 +209,7 @@ class GVAE_Training:
             "precision": [],
             "distinct_count": [],
         }
+        ensemble = []
         for idx, g in enumerate(generated_graphs):
             nn = pygeometric_to_nn(copy.deepcopy(g), self.base_model)
             test_process = SupervisedLearning(
@@ -214,6 +220,7 @@ class GVAE_Training:
             sample_test_metrics = test_process.test()
             for key in eval_results.keys():
                 eval_results[key].append(sample_test_metrics[key])
+            ensemble.append(copy.deepcopy(nn))
         eval_avg_result = {}
         for k, v in eval_results.items():
             if type(v[0]) != list:
@@ -221,9 +228,61 @@ class GVAE_Training:
             else:
                 eval_avg_result[f"mean_{k}"] = np.mean(
                     np.array(v), axis=0).tolist()
-        return eval_results, eval_avg_result
+        ensemble_metrics = self.test_ensemble(ensemble)
+        return eval_results, eval_avg_result.update(ensemble_metrics)
 
     def eval_epoch(self, idx):
         print("\nEvaluating graph samples -- Epoch %d" % idx)
         sampled_graphs = self.sample_graphs()
         return self.eval_samples(sampled_graphs)
+
+    def test_ensemble(self, ensemble: list):
+        """
+        Do a test on the ensemble of models sampled from our model generator.
+        """
+        ensemble_test_loss = 0.0
+        ensemble_correct_preds = 0
+        # ensemble = [self.model.load_state_dict(d) for d in self.model_ensemble]
+        gen_model_test_dataset = DatasetRetriever(
+            self.dataset.original_dataset)
+        _, test_set = gen_model_test_dataset()
+        test_dataloader = DataLoader(test_set, len(test_set))
+        predictions = []
+        groundtruth = []
+        for _, (mbatch_x, mbatch_y) in enumerate(test_dataloader):
+            mbatch_x = mbatch_x.to(self.device)
+            # mbatch_y = mbatch_y.to(self.device)
+            flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
+            one_hot_mbatch_y = torch.eye(10)[
+                mbatch_y].to(self.device)
+            ensemble_pred_y = torch.stack(
+                [m(flattened_mbatch_x) for m in ensemble], 0
+            ).mean(0)
+            ensemble_test_loss += F.cross_entropy(
+                ensemble_pred_y, one_hot_mbatch_y)
+
+            y_pred = torch.argmax(ensemble_pred_y.cpu(), dim=1).tolist()
+            ensemble_correct_preds += torch.where(
+                torch.argmax(ensemble_pred_y.cpu(), dim=1) == mbatch_y, 1, 0
+            ).sum()
+            predictions += y_pred
+            groundtruth += mbatch_y.tolist()
+
+        ensemble_loss = ensemble_test_loss.item()
+        ensemble_acc = ensemble_correct_preds / len(test_set)
+        ensemble_f1_score = f1_score(
+            groundtruth, predictions, average="weighted")
+        ensemble_precision = precision_score(
+            groundtruth, predictions, average="weighted")
+        ensemble_recall = recall_score(
+            groundtruth, predictions, average="weighted")
+        ensemble_cm = confusion_matrix(groundtruth, predictions)
+        ensemble_distinct_count = np.sum(ensemble_cm, axis=0).tolist()
+        return {
+            "ensemble_test_loss": ensemble_loss,
+            "ensemble_test_acc": ensemble_acc,
+            "ensemble_f1_metric": ensemble_f1_score,
+            "ensemble_recall": ensemble_recall,
+            "ensemble_precision": ensemble_precision,
+            "ensemble_distinct_count": ensemble_distinct_count,
+        }

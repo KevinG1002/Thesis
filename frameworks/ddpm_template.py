@@ -3,6 +3,8 @@ import os
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import Adam
+import copy
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from datasets.model_dataset import ModelsDataset
 from datasets.get_dataset import DatasetRetriever
@@ -11,6 +13,7 @@ from utils.exp_logging import checkpoint, Logger
 from models.unet import DDPMUNet
 from utils.profile import profile
 from utils.weight_transformations import nn_to_2d_tensor, tensor_to_nn
+from sklearn.metrics import precision_score, f1_score, recall_score, confusion_matrix
 from frameworks.sgd_template import SupervisedLearning
 
 
@@ -137,19 +140,29 @@ class DDPMDiffusion:
                          "mean_recall": [],
                          "mean_precision": [],
                          "mean_distinct_count": [],
+                         "ensemble_test_loss": [],
+                         "ensemble_test_acc": [],
+                         "ensemble_f1_metric": [],
+                         "ensemble_recall": [],
+                         "ensemble_precision": [],
+                         "ensemble_confusion_matrix": [],
+                         "ensemble_distinct_count": [],
                          }
 
         for epoch in range(self.epochs):
             print("\nEpoch %d\n" % (epoch + 1))
+            # self.train_epoch(epoch + 1)
             self.train_epoch(epoch + 1)
             _, sample_eval_metrics, sample_eval_avg_metrics = self.sample("")
             for key in sample_eval_avg_metrics.keys():
                 train_metrics[key].append(sample_eval_avg_metrics[key])
+
+            train_metrics["train_diff_loss"].append(self.loss.item())
             if self.logger:
                 self.logger.save_results(
                     sample_eval_metrics, f"sample_model_metrics_epoch{epoch+1}.json")
-
-            train_metrics["train_diff_loss"].append(self.loss.item())
+                self.logger.save_results(
+                    train_metrics, f"train_metrics_so_far.json")
             if self.checkpoint_every and (epoch % self.checkpoint_every == 0):
                 checkpoint_name = "ddpm_checkpoint_e_%d_loss_%.3f.pt" % (
                     (epoch + 1),
@@ -256,6 +269,7 @@ class DDPMDiffusion:
         #     "mean_precision" : None,
         #     "mean_count" : None
         # }
+        ensemble = []
         for i in range(self.num_gen_samples):
             nn_tensor = self.dataset.restore_original_tensor(samples[i])
             nn = tensor_to_nn(nn_tensor, self.dataset.base_model)
@@ -266,6 +280,7 @@ class DDPMDiffusion:
             mnist_process = SupervisedLearning(
                 nn, test_set=test_set, device=self.device
             )
+            ensemble.append(copy.deepcopy(nn))
 
             sample_result = mnist_process.test()
             for key in eval_results.keys():
@@ -277,4 +292,57 @@ class DDPMDiffusion:
             else:
                 eval_avg_result[f"mean_{k}"] = np.mean(
                     np.array(v), axis=0).tolist()
+        ensemble_metrics = self.test_ensemble(ensemble)
+        eval_avg_result.update(ensemble_metrics)
         return eval_results, eval_avg_result
+
+    def test_ensemble(self, ensemble: list):
+        """
+        Do a test on the ensemble of models sampled from our model generator.
+        """
+        ensemble_test_loss = 0.0
+        ensemble_correct_preds = 0
+        # ensemble = [self.model.load_state_dict(d) for d in self.model_ensemble]
+        gen_model_test_dataset = DatasetRetriever(
+            self.dataset.original_dataset)
+        _, test_set = gen_model_test_dataset()
+        test_dataloader = DataLoader(test_set, len(test_set))
+        predictions = []
+        groundtruth = []
+        for _, (mbatch_x, mbatch_y) in enumerate(test_dataloader):
+            mbatch_x = mbatch_x.to(self.device)
+            # mbatch_y = mbatch_y.to(self.device)
+            flattened_mbatch_x = torch.flatten(mbatch_x, start_dim=1)
+            one_hot_mbatch_y = torch.eye(10)[
+                mbatch_y].to(self.device)
+            ensemble_pred_y = torch.stack(
+                [m(flattened_mbatch_x) for m in ensemble], 0
+            ).mean(0)
+            ensemble_test_loss += F.cross_entropy(
+                ensemble_pred_y, one_hot_mbatch_y)
+
+            y_pred = torch.argmax(ensemble_pred_y.cpu(), dim=1).tolist()
+            ensemble_correct_preds += torch.where(
+                torch.argmax(ensemble_pred_y.cpu(), dim=1) == mbatch_y, 1, 0
+            ).sum()
+            predictions += y_pred
+            groundtruth += mbatch_y.tolist()
+
+        ensemble_loss = ensemble_test_loss.item()
+        ensemble_acc = ensemble_correct_preds / len(test_set)
+        ensemble_f1_score = f1_score(
+            groundtruth, predictions, average="weighted")
+        ensemble_precision = precision_score(
+            groundtruth, predictions, average="weighted")
+        ensemble_recall = recall_score(
+            groundtruth, predictions, average="weighted")
+        ensemble_cm = confusion_matrix(groundtruth, predictions)
+        ensemble_distinct_count = np.sum(ensemble_cm, axis=0).tolist()
+        return {
+            "ensemble_test_loss": ensemble_loss,
+            "ensemble_test_acc": ensemble_acc.item(),
+            "ensemble_f1_metric": ensemble_f1_score,
+            "ensemble_recall": ensemble_recall,
+            "ensemble_precision": ensemble_precision,
+            "ensemble_distinct_count": ensemble_distinct_count,
+        }
