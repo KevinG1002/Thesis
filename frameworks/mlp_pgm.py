@@ -274,7 +274,8 @@ class MLP_PGM(object):
         losses = []
         # Consider running for more steps.
         for step in range(self.num_iterations):
-            loss = svi.step(layerwise_weight_dataset, layerwise_bias_dataset)
+            loss = svi.step(x, layerwise_weight_dataset,
+                            layerwise_bias_dataset)
             losses.append(loss)
             if step % 100 == 0:
                 print("Elbo loss: {}".format(loss))
