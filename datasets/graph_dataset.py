@@ -5,7 +5,7 @@ from typing import Callable
 from torch_geometric.data import Dataset, Data
 from torch_geometric.transforms import LineGraph
 import torch_geometric.transforms as T
-from models.mlp import MLP
+from models.mlp import MLP, SmallMLP
 from utils.graph_manipulations import (
     weight_tensor_to_graph,
     mlp_tensor_to_line_graph,
@@ -109,8 +109,8 @@ def run():
         [weight_tensor_to_graph]  # LineGraph(True)]
     )  # LineGraph(False)])
     gd = GraphDataset(
-        base_model=MLP(),
-        root="../datasets/model_dataset_MNIST",
+        base_model=SmallMLP(),
+        root="../datasets/small_model_dataset_MNIST",
         pre_transform=transforms,
     )
     graph: Data = gd[1]
@@ -119,3 +119,4 @@ def run():
 
 if __name__ == "__main__":
     run()
+    
