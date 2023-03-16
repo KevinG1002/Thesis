@@ -105,8 +105,8 @@ def run_experiment(cfg: CONFIG):
     test_metrics = snapshot_process.test_ensemble()
 
     if cfg.log_training:
-        cfg.logger.save_results(train_metrics)
-        cfg.logger.save_results(test_metrics)
+        cfg.logger.save_results(train_metrics, "train_metics.json")
+        cfg.logger.save_results(test_metrics, "test_metrics.json")
 
 
 if __name__ == "__main__":
