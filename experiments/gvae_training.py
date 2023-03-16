@@ -26,6 +26,7 @@ class CONFIG:
         criterion: Callable,
         epochs: int,
         batch_size: int,
+        grad_accumulation: int,
         learning_rate: float,
         decay_rate: float,
         num_samples: int,
@@ -40,6 +41,7 @@ class CONFIG:
         self.criterion = criterion
         self.epochs = epochs
         self.batch_size = batch_size
+        self.grad_accumulation = grad_accumulation
         self.learning_rate = learning_rate
         self.decay_rate = decay_rate
         self.num_samples = num_samples
@@ -94,6 +96,9 @@ def run(cfg: CONFIG):
         cfg.learning_rate,
         cfg.decay_rate,
         cfg.num_samples,
+        cfg.grad_accumulation,
+        True,
+        5,
     )
     GVAE_training_process.train()
 
