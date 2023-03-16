@@ -30,6 +30,7 @@ class GVAE_Training:
         learning_rate: float = 1e-3,
         decay_rate: float = 0,
         num_samples: int = 10,
+        grad_accumulation: int = 5,
         log_training: bool = False,
         checkpoint_every: int = None,
         subgraph_sampling: bool = False,
@@ -49,6 +50,7 @@ class GVAE_Training:
         )
         self.log_training = log_training
         self.num_samples = num_samples
+        self.grad_accumulation = grad_accumulation
         self.graph_edge_index = (
             self.dataset.default_edge_index
         )  # in our problem, all graphs have the exact same edge_index since they all have the same connections but different weights (node attributes here)
@@ -127,7 +129,6 @@ class GVAE_Training:
         # for _ in range(num_iterations):
         for idx, mbatch_x in enumerate(self.train_dataloader):
             # mbatch_x = next(iter(self.train_dataloader))
-            self.optimizer.zero_grad()
             # print(
             #     mbatch_x.x == mbatch_x.edge_weight
             # )  # need to apply transform that removes edge weight
@@ -140,19 +141,24 @@ class GVAE_Training:
             # x, edge_index = self.sampler(x, edge_index)
             recon_z, self.mu, self.log_var = self.model(x, edge_index, None)
 
-            loss = self.criterion(
-                x,
-                recon_z,
-                num_nodes,
-                self.log_var,
-                self.mu,
+            loss = (
+                self.criterion(
+                    x,
+                    recon_z,
+                    num_nodes,
+                    self.log_var,
+                    self.mu,
+                )
+                / self.grad_accumulation
             )
             if idx % 100 == 0:
                 print("ELBO loss:", loss.item())
                 # self.eval_epoch(epoch_idx)
             loss.backward()
-            train_loss += loss
-            self.optimizer.step()
+            train_loss += loss * self.grad_accumulation
+            if (idx + 1) % self.grad_accumulation:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
             # print("ELBO loss:", loss.item())
 
         avg_train_loss = train_loss.item() / len(self.train_dataloader)
