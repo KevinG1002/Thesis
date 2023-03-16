@@ -135,6 +135,7 @@ if __name__ == "__main__":
         loss_fn,
         epochs=experiment_params.num_epochs,
         batch_size=experiment_params.batch_size,
+        grad_accumulation=2,
         learning_rate=experiment_params.learning_rate,
         decay_rate=0.0,
         num_samples=20,
