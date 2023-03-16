@@ -28,7 +28,7 @@ class GVAELoss(nn.Module):
         num_nodes: int,
         log_var: torch.Tensor,
         mu: torch.Tensor,
-        reduction_fn: str = "sum",
+        reduction_fn: str = "mean",
     ):
         loss = F.binary_cross_entropy_with_logits(
             predictions, ground_truth, reduction=reduction_fn
@@ -36,7 +36,8 @@ class GVAELoss(nn.Module):
 
         kl = (0.5 / num_nodes) * torch.mean(
             torch.sum(
-                1 + 2 * log_var - torch.square(mu) - torch.square(torch.exp(log_var)),
+                1 + 2 * log_var -
+                torch.square(mu) - torch.square(torch.exp(log_var)),
                 1,
             )
         )
@@ -140,11 +141,13 @@ class PairNorm(nn.Module):
 
         if self.mode == "PN-SI":
             x = x - col_mean
-            rownorm_individual = (1e-6 + x.pow(2).sum(dim=1, keepdim=True)).sqrt()
+            rownorm_individual = (
+                1e-6 + x.pow(2).sum(dim=1, keepdim=True)).sqrt()
             x = self.scale * x / rownorm_individual
 
         if self.mode == "PN-SCS":
-            rownorm_individual = (1e-6 + x.pow(2).sum(dim=1, keepdim=True)).sqrt()
+            rownorm_individual = (
+                1e-6 + x.pow(2).sum(dim=1, keepdim=True)).sqrt()
             x = self.scale * x / rownorm_individual - col_mean
 
         return x

@@ -52,14 +52,15 @@ class GVAE_Training:
         self.graph_edge_index = (
             self.dataset.default_edge_index
         )  # in our problem, all graphs have the exact same edge_index since they all have the same connections but different weights (node attributes here)
-        print(self.graph_edge_index.size())
+        # print(self.graph_edge_index.size())
 
-        self.subgraph_sampling = subgraph_sampling  # GVAE_Sampler("uniform", 2.5, self.graph_edge_index, 100)
+        # GVAE_Sampler("uniform", 2.5, self.graph_edge_index, 100)
+        self.subgraph_sampling = subgraph_sampling
 
         self.device = device
         self.checkpoint_every = checkpoint_every
 
-        ## For the evaluation of sampled graphs.
+        # For the evaluation of sampled graphs.
         gen_model_test_dataset = DatasetRetriever("MNIST")
         _, self.test_set = gen_model_test_dataset()
 
@@ -110,7 +111,8 @@ class GVAE_Training:
                 self.epochs,
                 train_ep_metrics["train_loss"],
             )
-            model_checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
+            model_checkpoint_path = os.path.join(
+                self.checkpoint_dir, checkpoint_name)
             checkpoint(
                 model_checkpoint_path,
                 epoch + 1,
@@ -147,9 +149,8 @@ class GVAE_Training:
                 self.log_var,
                 self.mu,
             )
-            if idx % 100 == 0:
+            if idx % 30 == 0:
                 print("ELBO loss:", loss.item())
-                # self.eval_epoch(epoch_idx)
             loss.backward()
             train_loss += loss
             self.optimizer.step()
@@ -172,7 +173,8 @@ class GVAE_Training:
                 self.log_var
             ) * torch.exp(self.log_var)
             g = self.model.decode(z, self.graph_edge_index, None)
-            g = g.view(int(g.size()[0] / self.dataset.default_number_of_nodes), -1)
+            g = g.view(
+                int(g.size()[0] / self.dataset.default_number_of_nodes), -1)
             # print(g)
             new_g = Data(edge_index=self.graph_edge_index, x=g[0], weight=g[0])
             gen_graphs.append(new_g)
