@@ -14,6 +14,8 @@ from models.mlp import MLP
 from utils.exp_logging import Logger
 import os
 import datetime
+from utils.params import argument_parser
+
 
 EXPERIMENTAL_RESULTS_PATH = "experimental_results"
 
@@ -46,7 +48,7 @@ class CONFIG:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.model_name = self.gvae.name
-        self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{self.model_name}_GraphDataset_e_{self.epochs}_{self.learning_rate}_lr_{self.batch_size}_b"
+        self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{self.model_name}_GraphDataset_e_{self.epochs}_reduce_mean_loss_lr_{self.learning_rate}_b_{self.batch_size}"
         self.log_training = log_training
         self.checkpoint_path = checkpoint_path
         self.checkpoint_every = checkpoint_every
@@ -85,8 +87,8 @@ class CONFIG:
 
 def run(cfg: CONFIG):
     GVAE_training_process = GVAE_Training(
-        cfg.gvae,
-        cfg.base_model,
+        cfg.gvae.to(cfg.device),
+        cfg.base_model.to(cfg.device),
         cfg.dataset,
         cfg.criterion,
         cfg.epochs,
@@ -94,11 +96,17 @@ def run(cfg: CONFIG):
         cfg.learning_rate,
         cfg.decay_rate,
         cfg.num_samples,
+        device=cfg.device,
+
     )
     GVAE_training_process.train()
+    print("End of training final evaluation:\n")
+    GVAE_training_process.eval_epoch(cfg.epochs+1)
 
 
 if __name__ == "__main__":
+    experiment_params = argument_parser()
+
     gvae_enc = Encoder(1)
     gvae_dec = Decoder(1)
     loss_fn = GVAELoss()
@@ -112,10 +120,14 @@ if __name__ == "__main__":
         graph_vae,
         dataset,
         loss_fn,
-        10,
-        2,
-        1e-3,
-        0.0,
-        2,
+        epochs=experiment_params.num_epochs,
+        batch_size=experiment_params.batch_size,
+        learning_rate=experiment_params.learning_rate,
+        decay_rate=0.0,
+        num_samples=20,
+        log_training=True,
+        checkpoint_path=1,
+        checkpoint_every=experiment_params.save_every,
+        base_model=MLP()
     )
     run(cfg)
