@@ -33,6 +33,7 @@ class GraphDataset(Dataset):
                 list, zip(*list(json.load(labels).items()))
             )
         super(GraphDataset, self).__init__(root, transform, pre_transform)
+        self.original_dataset = "MNIST"
         # self.labels = os.path.join([os.listdir(root)])
 
         # print(self._model_paths, self._model_labels)
