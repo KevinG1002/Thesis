@@ -47,7 +47,7 @@ class ModelsDataset(Dataset):
         return loaded_model, label
 
     def load_model(self, model_path):
-        model = copy.deepcopy(MLP())
+        model = copy.deepcopy(self.base_model)
         model.load_state_dict(torch.load(model_path))
         return model
 
