@@ -95,7 +95,7 @@ class DDPMDiffusion:
         self.optimizer = Adam(
             self.noise_predictor.parameters(), self.learning_rate)
         self.dataloader = DataLoader(
-            self.dataset, self.batch_size, shuffle=True, pin_memory=True
+            self.dataset, self.batch_size, shuffle=True
         )
         # Checkpointing attributes
         self.checkpoint_every = checkpoint_every
@@ -132,22 +132,20 @@ class DDPMDiffusion:
         """
         Train UNet in conjuction with DDPM.
         """
-        print("Training DDPM on device:", self.device)
-        train_metrics = {"train_diff_loss": [],
-                         "mean_test_loss": [],
-                         "mean_test_acc": [],
-                         "mean_f1_metric": [],
-                         "mean_recall": [],
-                         "mean_precision": [],
-                         "mean_distinct_count": [],
-                         "ensemble_test_loss": [],
-                         "ensemble_test_acc": [],
-                         "ensemble_f1_metric": [],
-                         "ensemble_recall": [],
-                         "ensemble_precision": [],
-                         "ensemble_confusion_matrix": [],
-                         "ensemble_distinct_count": [],
-                         }
+        self.train_metrics = {"train_diff_loss": [],
+                              "mean_test_loss": [],
+                              "mean_test_acc": [],
+                              "mean_f1_metric": [],
+                              "mean_recall": [],
+                              "mean_precision": [],
+                              "mean_distinct_count": [],
+                              "ensemble_test_loss": [],
+                              "ensemble_test_acc": [],
+                              "ensemble_f1_metric": [],
+                              "ensemble_recall": [],
+                              "ensemble_precision": [],
+                              "ensemble_distinct_count": [],
+                              }
 
         for epoch in range(self.epochs):
             print("\nEpoch %d\n" % (epoch + 1))
@@ -155,14 +153,14 @@ class DDPMDiffusion:
             self.train_epoch(epoch + 1)
             _, sample_eval_metrics, sample_eval_avg_metrics = self.sample("")
             for key in sample_eval_avg_metrics.keys():
-                train_metrics[key].append(sample_eval_avg_metrics[key])
+                self.train_metrics[key].append(sample_eval_avg_metrics[key])
 
-            train_metrics["train_diff_loss"].append(self.loss.item())
+            self.train_metrics["train_diff_loss"].append(self.loss.item())
             if self.logger:
                 self.logger.save_results(
                     sample_eval_metrics, f"sample_model_metrics_epoch{epoch+1}.json")
                 self.logger.save_results(
-                    train_metrics, f"train_metrics_so_far.json")
+                    self.train_metrics, f"train_metrics_so_far.json")
             if self.checkpoint_every and (epoch % self.checkpoint_every == 0):
                 checkpoint_name = "ddpm_checkpoint_e_%d_loss_%.3f.pt" % (
                     (epoch + 1),
@@ -192,7 +190,7 @@ class DDPMDiffusion:
                 self.optimizer.state_dict(),
                 self.loss,
             )
-        return train_metrics
+        return self.train_metrics
 
     @torch.no_grad()
     def sample(self, title: str = ""):
