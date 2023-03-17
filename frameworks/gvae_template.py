@@ -166,7 +166,7 @@ class GVAE_Training:
                 )
                 / self.grad_accumulation
             )
-            if idx % 30 == 0:
+            if idx % 50 == 0:
                 print("ELBO loss:", loss.item())
             loss.backward()
             train_loss += loss * self.grad_accumulation
