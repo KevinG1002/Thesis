@@ -1,11 +1,12 @@
-import torch, os
+import torch
+import os
 from torchvision.datasets import MNIST, CIFAR10, CelebA
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, random_split
 from datasets.model_dataset import ModelsDataset
 from datasets.sin_dataset import SineDataset
 from utils.weight_transformations import pad_to, unpad, nn_to_2d_tensor
-from models.mlp import MLP
+from models.mlp import MLP, SmallMLP
 
 
 def normalize_unit_radius(tensor: torch.Tensor):
@@ -93,7 +94,8 @@ class DatasetRetriever:
 
         elif self.dataset_name == "CIFAR10":
             if self.resize_option:
-                im_transforms = transforms.Compose(list(self.im_transforms.values()))
+                im_transforms = transforms.Compose(
+                    list(self.im_transforms.values()))
                 self.train_set = CIFAR10(
                     "../datasets/",
                     train=True,
@@ -127,7 +129,8 @@ class DatasetRetriever:
 
         elif self.dataset_name == "CelebA":
             if self.resize_option:
-                im_transforms = transforms.Compose(list(self.im_transforms.values()))
+                im_transforms = transforms.Compose(
+                    list(self.im_transforms.values()))
                 self.train_set = CelebA(
                     "../datasets/",
                     train=True,
@@ -186,5 +189,33 @@ class DatasetRetriever:
             )
             return self.train_set, self.test_set
 
+        elif self.dataset_name == "small_model_dataset_MNIST":
+            print(
+                "Full dataset returned. Train test split can be easily done with random_split method from torch utils."
+            )
+            curr_dir = os.getcwd()
+            os.chdir("../")
+            previous_dir = os.getcwd()
+            print(previous_dir)
+            os.chdir(curr_dir)
+            self.dataset = ModelsDataset(
+                root_dir=f"{previous_dir}/datasets/small_model_dataset_MNIST/",
+                model_labels_path=f"{previous_dir}/datasets/small_model_dataset_MNIST/small_model_dataset.json",
+                base_model=SmallMLP(),
+                manipulations=nn_to_2d_tensor,
+                padding=True,
+                original_dataset="MNIST",
+            )
+            return self.dataset, None
+
         else:
             raise "Dataset not available yet"
+
+
+def test():
+    d = DatasetRetriever("small_model_dataset_MNIST")
+    dataset, _ = d()
+
+
+if __name__ == "__main__":
+    test()
