@@ -76,7 +76,7 @@ class MLP_PGM(object):
         self.guide: Callable = (
             self.pgm_guide()
             if self.pgm_guide()
-            else AutoLaplaceApproximation(self.pgm_model)
+            else AutoNormal(self.pgm_model)
         )
 
         # self.trace = poutine.trace(self.pgm_model).get_trace(self.observed_data)
@@ -95,7 +95,8 @@ class MLP_PGM(object):
         #     )
         # )
         # self.subsample_size = self.batch_size if layerwise_weight_dataset else None
-        x = x if x else torch.randn(
+        self.data = data
+        x = self.data if self.data.any() else torch.randn(
             self.subsample_size if self.subsample_size else self.dataset_len, 784, 1
         )
 
@@ -317,7 +318,10 @@ class MLP_PGM(object):
         """
         To do
         """
-        trace = poutine.trace(self.pgm_model).get_trace(self.observed_data)
+        x = self.data if self.data.any() else torch.randn(
+            self.subsample_size if self.subsample_size else self.dataset_len, 784, 1
+        )
+        trace = poutine.trace(self.pgm_model).get_trace(x)
         sample_names = [
             j
             for j in [
