@@ -141,7 +141,9 @@ class RegressionTemplate(BasicLearning):
         train_loss = 0.0
         for idx, (mbatch_x, mbatch_y) in enumerate(self.train_dataloader):
             self.optimizer.zero_grad()
-            mbatch_x = mbatch_x.unsqueeze(-1).unsqueeze(-1).to(self.device)
+            mbatch_x = mbatch_x.to(self.device)
+            mbatch_y = mbatch_y.to(self.device)
+            mbatch_x = mbatch_x.unsqueeze(-1).unsqueeze(-1)
             pred_y = self.model(mbatch_x).squeeze()
             # print(pred_y.size(), mbatch_y.size())
             loss = self.criterion(
@@ -162,6 +164,8 @@ class RegressionTemplate(BasicLearning):
             groundtruth = []
             for idx, (mbatch_x, mbatch_y) in enumerate(self.val_dataloader):
                 mbatch_x = mbatch_x.unsqueeze(-1).to(self.device)
+                mbatch_y = mbatch_y.to(self.device)
+
                 pred_y: torch.Tensor = self.model(mbatch_x).squeeze()
                 val_loss += self.criterion(pred_y, mbatch_y)
                 predictions += pred_y.tolist()
@@ -202,6 +206,7 @@ class RegressionTemplate(BasicLearning):
         groundtruth = []
         for mbatch_x, mbatch_y in self.test_dataloader:
             mbatch_x = mbatch_x.unsqueeze(-1).to(self.device)
+            mbatch_y = mbatch_y.to(self.device)
             pred_y = self.model(mbatch_x).squeeze()
             test_loss += self.criterion(pred_y, mbatch_y)
             predictions += pred_y.tolist()
