@@ -101,7 +101,8 @@ def run(cfg: CONFIG):
         device=cfg.device,
         grad_accumulation=cfg.grad_accumulation,
         log_training=True,
-        checkpoint_every=5,
+        checkpoint_every=cfg.checkpoint_every,
+        checkpoint_dir_path=cfg.checkpoint_path,
         logger=cfg.logger
     )
     train_metrics = GVAE_training_process.train()

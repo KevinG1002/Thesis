@@ -13,7 +13,6 @@ from torch_geometric.loader import DataLoader, NeighborSampler, NeighborLoader
 from samplers.graph_sampler import GVAE_Sampler
 from utils.graph_manipulations import pygeometric_to_nn
 from datasets.get_dataset import DatasetRetriever
-from torch_scatter import scatter
 from sklearn.metrics import precision_score, f1_score, recall_score, confusion_matrix
 
 import copy
@@ -36,6 +35,7 @@ class GVAE_Training:
         grad_accumulation: int = 5,
         log_training: bool = False,
         checkpoint_every: int = None,
+        checkpoint_dir_path: str = None,
         subgraph_sampling: bool = False,
         device: str = "cpu",
         logger: Logger = None,
@@ -65,7 +65,20 @@ class GVAE_Training:
 
         self.device = device
         self.checkpoint_every = checkpoint_every
+        self.checkpoint_dir_path = checkpoint_dir_path
         self.logger = logger
+        assert (checkpoint_dir_path and checkpoint_every) or not (
+            checkpoint_dir_path and checkpoint_every
+        ), "Missing either one of checkpoint dir (str path) or checkpoint frequency (int)"
+        if checkpoint_every:
+            assert (
+                checkpoint_every <= self.epochs
+            ), "Checkpoint frequency greater than number of epochs. Current program won't checkpoint models."
+        # Attribute set up within init function.
+        if self.checkpoint_dir_path:
+            self.experiment_dir = os.path.dirname(self.checkpoint_dir_path)
+        else:
+            self.experiment_dir = os.getcwd()
 
         # For the evaluation of sampled graphs.
         gen_model_test_dataset = DatasetRetriever("MNIST")
@@ -110,7 +123,7 @@ class GVAE_Training:
                     train_ep_metrics["train_loss"],
                 )
                 model_checkpoint_path = os.path.join(
-                    self.checkpoint_dir, checkpoint_name
+                    self.checkpoint_dir_path, checkpoint_name
                 )
                 checkpoint(
                     model_checkpoint_path,
@@ -127,7 +140,7 @@ class GVAE_Training:
                 train_ep_metrics["train_loss"],
             )
             model_checkpoint_path = os.path.join(
-                self.checkpoint_dir, checkpoint_name)
+                self.checkpoint_dir_path, checkpoint_name)
             checkpoint(
                 model_checkpoint_path,
                 epoch + 1,
@@ -138,6 +151,7 @@ class GVAE_Training:
         return train_metrics
 
     def train_epoch(self, epoch_idx: int):
+        epoch_metrics = {}
         train_loss = 0.0
         edge_index = self.graph_edge_index
         num_iterations = 100
@@ -177,9 +191,9 @@ class GVAE_Training:
 
         avg_train_loss = train_loss.item() / len(self.train_dataloader)
         eval_metrics, eval_avg_metrics = self.eval_epoch(epoch_idx)
-        return {
-            "train_loss": avg_train_loss,
-        }.update(eval_avg_metrics), eval_metrics
+        epoch_metrics["train_loss"] = avg_train_loss
+        epoch_metrics.update(eval_avg_metrics)
+        return epoch_metrics, eval_metrics
 
     @torch.no_grad()
     def sample_graphs(self) -> list:
@@ -229,12 +243,14 @@ class GVAE_Training:
                 eval_avg_result[f"mean_{k}"] = np.mean(
                     np.array(v), axis=0).tolist()
         ensemble_metrics = self.test_ensemble(ensemble)
-        return eval_results, eval_avg_result.update(ensemble_metrics)
+        avg_results = {**ensemble_metrics, **eval_avg_result}
+        return eval_results, avg_results
 
     def eval_epoch(self, idx):
         print("\nEvaluating graph samples -- Epoch %d" % idx)
         sampled_graphs = self.sample_graphs()
-        return self.eval_samples(sampled_graphs)
+        eval_results, eval_avg_results = self.eval_samples(sampled_graphs)
+        return eval_results, eval_avg_results
 
     def test_ensemble(self, ensemble: list):
         """
@@ -269,7 +285,7 @@ class GVAE_Training:
             groundtruth += mbatch_y.tolist()
 
         ensemble_loss = ensemble_test_loss.item()
-        ensemble_acc = ensemble_correct_preds / len(test_set)
+        ensemble_acc = ensemble_correct_preds.item() / len(test_set)
         ensemble_f1_score = f1_score(
             groundtruth, predictions, average="weighted")
         ensemble_precision = precision_score(
