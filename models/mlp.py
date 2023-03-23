@@ -49,7 +49,7 @@ class SmallMLP(nn.Module):
 class RegressMLP(nn.Module):
     def __init__(self, input_dim: int = 1, output_dim: int = 1):
         """
-        Mini MLP for Sine Regression. Here, the activation function is ReLU.
+        Mini MLP for Sine Regression. Here, the activation function is Tanh.
         """
         super().__init__()
         self.fc_1 = nn.Linear(input_dim, 10)
