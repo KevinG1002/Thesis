@@ -10,6 +10,8 @@ def argument_parser():
     parser.add_argument("-lr", "--learning_rate", default=1e-3, type=float)
     parser.add_argument("--n_runs", default=50, type=int)
     parser.add_argument("--n_steps", default=1000, type= int)
+    parser.add_argument("--n_its", default=1000, type= int)
+    parser.add_argument("--n_samples", default = 20, type= int)
     parser.add_argument("--weight_decay", default=0.999, type=float)
     parser.add_argument("--M_snapshots", default=10, type=int)
     parser.add_argument("--save_every", default=None, type=int)
