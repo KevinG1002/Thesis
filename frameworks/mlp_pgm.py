@@ -27,6 +27,7 @@ from matplotlib.colors import ListedColormap
 import graphviz
 import pandas as pd
 from models.mlp import MLP
+from utils.graph_manipulations import get_layer_widths
 
 
 class MLP_PGM(object):
@@ -48,7 +49,7 @@ class MLP_PGM(object):
         self.dataset_len = dataset_len
         self.device = device
         self.loss_function = (
-            loss_function if loss_function else Trace_ELBO(num_particles=10)
+            loss_function if loss_function else Trace_ELBO(num_particles=30)
         )
         # self.optim = DCTAdam(
         #     {"lr": self.learning_rate, "betas": (0.97, 0.999)})
@@ -56,11 +57,7 @@ class MLP_PGM(object):
             {"lr": self.learning_rate, "betas": (0.93, 0.99)}
         )
 
-        self.layer_structure = [
-            param.size()[1]
-            for param in base_model.parameters()
-            if len(param.size()) > 1
-        ] + [10]
+        self.layer_structure = get_layer_widths(self.base_model)
 
         self.weight_matrix_dims = [
             (self.layer_structure[i], self.layer_structure[i + 1])
@@ -72,6 +69,7 @@ class MLP_PGM(object):
         self.init_fn = partial(
             dist.MultivariateNormal,
         )
+        print(self.weight_matrix_dims, self.bias_dims)
 
         self.guide: Callable = (
             self.pgm_guide()
