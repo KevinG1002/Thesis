@@ -28,7 +28,7 @@ class GVAELoss(nn.Module):
         num_nodes: int,
         log_var: torch.Tensor,
         mu: torch.Tensor,
-        reduction_fn: str = "mean",
+        reduction_fn: str = "sum",
     ):
         loss = F.binary_cross_entropy_with_logits(
             predictions, ground_truth, reduction=reduction_fn

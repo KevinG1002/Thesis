@@ -10,7 +10,7 @@ from frameworks.sgd_template import SupervisedLearning
 from frameworks.gvae_template import GVAE_Training
 from utils.exp_logging import checkpoint
 from models.graph_vae import GraphVAE, Encoder, Decoder, GVAELoss
-from models.mlp import MLP
+from models.mlp import MLP, SmallMLP
 from utils.exp_logging import Logger
 import os
 import datetime
@@ -50,7 +50,8 @@ class CONFIG:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.model_name = self.gvae.name
-        self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{self.model_name}_GraphDataset_e_{self.epochs}_reduce_mean_loss_lr_{self.learning_rate}_b_{self.batch_size}"
+        self.base_model_name = self.base_model.name
+        self.experiment_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{self.model_name}_GraphDataset_e_{self.epochs}_reduce_sum_loss_lr_{self.learning_rate}_b_{self.batch_size}"
         self.log_training = log_training
         self.checkpoint_path = checkpoint_path
         self.checkpoint_every = checkpoint_every
@@ -126,8 +127,8 @@ if __name__ == "__main__":
     loss_fn = GVAELoss()
 
     dataset = GraphDataset(
-        base_model=MLP(),
-        root="../datasets/model_dataset_MNIST",
+        base_model=SmallMLP(),
+        root="../datasets/small_model_dataset_MNIST",
     )
     graph_vae = GraphVAE(gvae_enc, gvae_dec)
     cfg = CONFIG(
@@ -136,13 +137,13 @@ if __name__ == "__main__":
         loss_fn,
         epochs=experiment_params.num_epochs,
         batch_size=experiment_params.batch_size,
-        grad_accumulation=2,
+        grad_accumulation=8,
         learning_rate=experiment_params.learning_rate,
         decay_rate=0.0,
         num_samples=20,
         log_training=True,
         checkpoint_path=1,
         checkpoint_every=experiment_params.save_every,
-        base_model=MLP()
+        base_model=SmallMLP()
     )
     run(cfg)

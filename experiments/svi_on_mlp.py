@@ -7,7 +7,7 @@ import numpy as np
 from torch.utils.data import DataLoader, Subset
 import torch.nn.functional as F
 from sklearn.metrics import precision_score, f1_score, recall_score, confusion_matrix
-from models.mlp import MLP
+from models.mlp import MLP, SmallMLP
 from datasets.pgm_dataset import PGMDataset
 from datasets.get_dataset import DatasetRetriever
 from frameworks.mlp_pgm import MLP_PGM
@@ -230,9 +230,9 @@ def test_ensemble(ensemble: list, config: CONFIG):
 if __name__ == "__main__":
     experiment_params = argument_parser()
 
-    dataset_json_path = "/scratch_net/bmicdl03/kgolan/Thesis/datasets/model_dataset_MNIST/model_dataset.json"
+    dataset_json_path = "/scratch_net/bmicdl03/kgolan/Thesis/datasets/small_model_dataset_MNIST/small_model_dataset.json"
     dataset_obj = PGMDataset(
-        model_json_path=dataset_json_path, base_model=MLP())
+        model_json_path=dataset_json_path, base_model=SmallMLP())
     weights, biases = dataset_obj()
     # print(weights[0].size(), weights[0])
 
@@ -240,7 +240,7 @@ if __name__ == "__main__":
         learning_rate=experiment_params.learning_rate,
         batch_size=experiment_params.batch_size,
         num_iterations=experiment_params.n_its,
-        base_model=MLP(),
+        base_model=SmallMLP(),
         weight_dataset=weights,
         bias_dataset=biases,
         num_latent_samples=experiment_params.n_samples,

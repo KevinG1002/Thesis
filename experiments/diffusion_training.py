@@ -178,6 +178,7 @@ def main():
     # dataset_name = "MNIST"
     experiment_params = argument_parser()
     # dataset_name = experiment_params.dataset_name
+    # dataset_name = "small_model_dataset_MNIST"
     dataset_name = "model_dataset_MNIST"
     cfg = CONFIG(
         dataset_name,
@@ -186,11 +187,11 @@ def main():
         epochs=experiment_params.num_epochs,
         learning_rate=experiment_params.learning_rate,
         batch_size=experiment_params.batch_size,
-        grad_accumulator=1,
+        grad_accumulator=8,
         n_samples_gen=20,
         sample_size=(None, None),
         n_blocks=1,
-        is_attention=[False, False, False, False],
+        is_attention=[False, False, False, True],
         resize_images=False,
         checkpoint_path=1,
         checkpoint_every=experiment_params.save_every,

@@ -48,53 +48,55 @@ def run(cfg: GENCONFIG):
 
     dataset_dicts = {}
 
-    models = [RegressMLP() for _ in range(cfg.num_runs)]
+    models = [SmallMLP() for _ in range(cfg.num_runs)]
     optimizers = [
         Adam(models[i].parameters(), lr=cfg.learning_rate) for i in range(cfg.num_runs)
     ]
     print(cfg.device)
-    with open(f"{cfg.target_dir}/small_model_SINE_dataset.json", "w") as file:
+    with open(f"{cfg.target_dir}/small_model_MNIST_dataset_2000.json", "w") as file:
         json.dump(dataset_dicts, file)
     for i in range(cfg.num_runs):
         # entry = {}
-        model_path = f"{cfg.target_dir}models/small_mlp_sine_model_{i}.pth"
-        # training_process = SupervisedLearning(
-        #     model=models[i].to(cfg.device),
-        #     train_set=cfg.train_set,
-        #     test_set=cfg.test_set,
-        #     val_set=None,
-        #     num_classes=10,
-        #     epochs=cfg.epochs,
-        #     batch_size=cfg.batch_size,
-        #     criterion=CrossEntropyLoss(),
-        #     device=cfg.device,
-        # )
-        training_process = RegressionTemplate(model=models[i].to(cfg.device),
-                                              train_set=cfg.train_set,
-                                              test_set=cfg.test_set,
-                                              val_set=None,
-                                              epochs=cfg.epochs,
-                                              batch_size=cfg.batch_size,
-                                              criterion=MSELoss(),
-                                              device=cfg.device,)
+        model_path = f"{cfg.target_dir}models/small_mlp_2000_MNIST_{i}.pth"
+        training_process = SupervisedLearning(
+            model=models[i].to(cfg.device),
+            train_set=cfg.train_set,
+            test_set=cfg.test_set,
+            val_set=None,
+            num_classes=10,
+            epochs=cfg.epochs,
+            batch_size=cfg.batch_size,
+            criterion=CrossEntropyLoss(),
+            device=cfg.device,
+        )
+        # training_process = RegressionTemplate(model=models[i].to(cfg.device),
+        #                                       train_set=cfg.train_set,
+        #                                       test_set=cfg.test_set,
+        #                                       val_set=None,
+        #                                       epochs=cfg.epochs,
+        #                                       batch_size=cfg.batch_size,
+        #                                       criterion=MSELoss(),
+        #                                       device=cfg.device,)
         training_process.optimizer = optimizers[i]
         training_process.train()
         performance_dict = training_process.test()
+        
         trained_model = copy.deepcopy(training_process.model)
         torch.save(trained_model.state_dict(), model_path)
-        with open(f"{cfg.target_dir}/small_model_SINE_dataset.json", "w") as file:
-            dataset_dicts[model_path] = {
-                k: v.cpu().item() if type(v) == torch.Tensor else v
-                for k, v in performance_dict.items()
-            }
+        with open(f"{cfg.target_dir}/small_model_MNIST_dataset_2000.json", "w") as file:
+            # dataset_dicts[model_path] = {
+            #     testing: v.cpu().item() if type(v) == torch.Tensor else v
+            #     for k, v in performance_dict.items()
+            # }
+            dataset_dicts[model_path] = {"test_acc" : performance_dict["test_acc"]}
 
             json.dump(dataset_dicts, file)
 
 
 def main():
-    target_dataset = "SineDataset"
+    target_dataset = "MNIST"
     target_directory = (
-        f"/scratch_net/bmicdl03/kgolan/Thesis/datasets/small_model_dataset_{target_dataset}/"
+        f"/scratch_net/bmicdl03/kgolan/Thesis/datasets/small_model_dataset_{target_dataset}_2000/"
     )
     # target_directory = f"../datasets/model_dataset_{target_dataset}/"
     if not os.path.exists(target_directory):
@@ -109,7 +111,7 @@ def main():
     cfg = GENCONFIG(
         target_dir=target_directory,
         target_dataset_transforms=transforms.ToTensor(),
-        target_dataset_name="SineDataset",
+        target_dataset_name="MNIST",
         learning_rate=learning_rate,
         epochs=epochs,
         batch_size=batch_size,
