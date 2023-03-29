@@ -9,7 +9,14 @@ from datasets.graph_dataset import GraphDataset
 from frameworks.sgd_template import SupervisedLearning
 from frameworks.gvae_template import GVAE_Training
 from utils.exp_logging import checkpoint
-from models.graph_vae import GraphVAE, Encoder, Decoder, GVAELoss
+from models.graph_vae import (
+    GraphVAE,
+    Encoder,
+    Decoder,
+    GVAELoss,
+    DeepDecoder,
+    DeepEncoder,
+)
 from models.mlp import MLP, SmallMLP
 from utils.exp_logging import Logger
 import os
@@ -104,26 +111,28 @@ def run(cfg: CONFIG):
         log_training=True,
         checkpoint_every=cfg.checkpoint_every,
         checkpoint_dir_path=cfg.checkpoint_path,
-        logger=cfg.logger
+        logger=cfg.logger,
     )
     train_metrics = GVAE_training_process.train()
     print("End of training final evaluation:\n")
     final_epoch_metrics, final_epoch_avg_metrics = GVAE_training_process.eval_epoch(
-        cfg.epochs+1)
+        cfg.epochs + 1
+    )
 
     if cfg.logger:
         cfg.logger.save_results(train_metrics, "training_metrics.json")
-        cfg.logger.save_results(final_epoch_metrics,
-                                "final_epoch_metrics.json")
-        cfg.logger.save_results(final_epoch_avg_metrics,
-                                "final_epoch_avg_metrics.json")
+        cfg.logger.save_results(final_epoch_metrics, "final_epoch_metrics.json")
+        cfg.logger.save_results(final_epoch_avg_metrics, "final_epoch_avg_metrics.json")
 
 
 if __name__ == "__main__":
     experiment_params = argument_parser()
 
-    gvae_enc = Encoder(1)
-    gvae_dec = Decoder(1)
+    # gvae_enc = Encoder(1)
+    # gvae_dec = Decoder(1)
+    gvae_enc = DeepEncoder(1, 128)
+    gvae_dec = DeepDecoder(128, 1)
+
     loss_fn = GVAELoss()
 
     dataset = GraphDataset(
@@ -144,6 +153,6 @@ if __name__ == "__main__":
         log_training=True,
         checkpoint_path=1,
         checkpoint_every=experiment_params.save_every,
-        base_model=SmallMLP()
+        base_model=SmallMLP(),
     )
     run(cfg)
