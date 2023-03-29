@@ -36,8 +36,7 @@ class GVAELoss(nn.Module):
 
         kl = (0.5 / num_nodes) * torch.mean(
             torch.sum(
-                1 + 2 * log_var -
-                torch.square(mu) - torch.square(torch.exp(log_var)),
+                1 + 2 * log_var - torch.square(mu) - torch.square(torch.exp(log_var)),
                 1,
             )
         )
@@ -83,6 +82,54 @@ class Decoder(nn.Module):
     def forward(self, z, edge_index, edge_weight):
         z = F.relu(self.upconv1(z, edge_index, edge_weight))
         z = F.relu(self.upconv2(z, edge_index, edge_weight))
+        z = self.upconv3(z, edge_index, edge_weight)
+        return z
+
+
+class DeepEncoder(nn.Module):
+    """
+    Encoder for VGAE. Pretty simple, used ChatGPT for help.
+    """
+
+    def __init__(self, dataset_in_channels, latent_out_channels):
+        super(DeepEncoder, self).__init__()
+        self.conv_1 = GCNConv(dataset_in_channels, dataset_in_channels * 2)
+        self.conv_2 = GCNConv(dataset_in_channels * 2, dataset_in_channels * 4)
+        self.conv_3 = GCNConv(dataset_in_channels * 4, dataset_in_channels * 8)
+
+        self.conv_mu = GCNConv(
+            dataset_in_channels * 8, latent_out_channels
+        )  # to parametrize latent space gaussian distribution
+        self.conv_logvar = GCNConv(
+            dataset_in_channels * 8, latent_out_channels
+        )  # to parametrize latent space gaussian distribution
+
+    def forward(self, x, edge_index, edge_weight):
+        x = F.relu(self.conv_1(x, edge_index, edge_weight))
+        x = F.relu(self.conv_2(x, edge_index, edge_weight))
+        x = F.relu(self.conv_3(x, edge_index, edge_weight))
+
+        mu = self.conv_mu(x, edge_index, edge_weight)
+        log_var = self.conv_logvar(x, edge_index, edge_weight)
+        return mu, log_var
+
+
+class DeepDecoder(nn.Module):
+    """
+    Decoder for VGAE. Pretty simple, used ChatGPT for help.
+    """
+
+    def __init__(self, latent_in_channels, dataset_out_channels):
+        super(DeepDecoder, self).__init__()
+        self.upconv1 = GCNConv(latent_in_channels, latent_in_channels * 2)
+        self.upconv2 = GCNConv(latent_in_channels * 2, latent_in_channels * 4)
+        self.upconv3 = GCNConv(latent_in_channels * 4, latent_in_channels * 8)
+        self.upconv4 = GCNConv(latent_in_channels * 8 * 2, dataset_out_channels)
+
+    def forward(self, z, edge_index, edge_weight):
+        z = F.relu(self.upconv1(z, edge_index, edge_weight))
+        z = F.relu(self.upconv2(z, edge_index, edge_weight))
+        z = F.relu(self.upconv3(z, edge_index, edge_weight))
         z = self.upconv3(z, edge_index, edge_weight)
         return z
 
@@ -141,13 +188,11 @@ class PairNorm(nn.Module):
 
         if self.mode == "PN-SI":
             x = x - col_mean
-            rownorm_individual = (
-                1e-6 + x.pow(2).sum(dim=1, keepdim=True)).sqrt()
+            rownorm_individual = (1e-6 + x.pow(2).sum(dim=1, keepdim=True)).sqrt()
             x = self.scale * x / rownorm_individual
 
         if self.mode == "PN-SCS":
-            rownorm_individual = (
-                1e-6 + x.pow(2).sum(dim=1, keepdim=True)).sqrt()
+            rownorm_individual = (1e-6 + x.pow(2).sum(dim=1, keepdim=True)).sqrt()
             x = self.scale * x / rownorm_individual - col_mean
 
         return x
